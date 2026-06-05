@@ -1,0 +1,175 @@
+You are a senior SaaS UI/UX engineer. Redesign the current SitePulse dashboard into a polished, premium, production-ready SaaS dashboard while keeping the existing functionality, routes, APIs, data models, and business logic intact.
+
+Product Context:
+SitePulse by Onset Media is a WordPress monitoring SaaS for agencies, freelancers, and business owners. It monitors connected WordPress sites, update pressure, sync freshness, page checks, health score, plugin/theme risks, unmonitored pages, and recommended actions.
+
+Current Issue:
+The current dashboard is functional but feels too basic and crowded. It looks like a generic admin template. I want it to feel like a modern SaaS product with better visual hierarchy, cleaner cards, professional typography, improved spacing, and more meaningful operational insights.
+
+Design Direction:
+- Keep the sidebar layout.
+- Use a premium SaaS visual style: clean, modern, soft shadows, subtle gradients, rounded cards, and strong spacing.
+- Use Inter, Geist, or a similar professional font.
+- Keep the dark navy sidebar but refine it visually.
+- Main content should be light, airy, and professional.
+- Use SitePulse branding: blue, indigo, purple accents with subtle gradients.
+- Avoid making the dashboard look like an alert page. Alerts already have their own page.
+- Dashboard should focus on executive overview, health posture, site performance, monitoring coverage, and recommended next actions.
+- Make it feel suitable for a commercial SaaS product that people would pay for.
+
+Sidebar Improvements:
+- Improve logo area spacing and branding.
+- Sidebar should feel more premium with better active states.
+- Active menu item should have a soft gradient or glass effect.
+- Menu icons should be aligned and consistent.
+- Keep these menu items:
+  Dashboard
+  Alerts
+  Sites
+  Clients
+  Reports
+  Users
+  Settings
+- Keep Add New Site shortcut, but make it more elegant.
+- User card at bottom should be cleaner.
+
+Top Header Improvements:
+- Improve the top API status pill.
+- Keep API status/test button functionality.
+- Improve Refresh and Add Site buttons.
+- Add a clean page title area with subtitle.
+- User profile card should look more refined.
+- Better spacing between top actions.
+
+Dashboard Layout:
+Redesign the dashboard using the following structure:
+
+1. Executive Summary Row
+Replace the current plain metric cards with premium KPI cards:
+- Total Sites
+- Healthy Sites
+- Needs Attention
+- Critical Risk
+- Unmonitored Pages
+
+Each KPI card should have:
+- clear label
+- large value
+- small supporting text
+- small icon badge
+- color-coded status
+- subtle hover state
+
+2. Main Insight Area
+Create a stronger two-column layout:
+Left large card: “Website Health Overview”
+- circular health score
+- health status label
+- progress indicators for:
+  Security Posture
+  Plugin Update Pressure
+  Monitoring Coverage
+  Sync Freshness
+  Page Response Performance
+- Use clean progress bars and professional badges.
+- Make this card visually stronger and easier to scan.
+
+Right card: “Recommended Actions”
+- Show top 3 recommended actions only.
+- Each action should have severity badge, title, affected site, and CTA.
+- CTAs: Fix Now, Review, Open.
+- Make it look like an action center, not an alert dashboard.
+- Add link: View all actions.
+
+3. Operational Snapshot Section
+Create three cards:
+- Recently Synced Sites
+- Monitoring Coverage
+- Update Pressure
+
+Recently Synced Sites:
+- Use clean table design.
+- Show website, status, last seen, plugin updates, and quick action menu.
+- Make rows more readable with better spacing and status badges.
+
+Monitoring Coverage:
+- Use a circular score or strong visual meter.
+- Show:
+  Connected Sites
+  Pages Discovered
+  Pages Monitored
+  Important Pages Unmonitored
+  Sites Synced Last 12h
+- Make this card feel like a SaaS insight widget.
+
+Update Pressure:
+- Show Plugin Updates, Theme Updates, WordPress Core, Sites Needing Updates.
+- Use icon rows and small count pills.
+- Add “View updates” link.
+
+4. Page Monitoring Section
+Improve “Recent Page Checks”
+- Make it a clean table.
+- Show site, page, status, response time, checked time, action.
+- Use response time color indicators:
+  Fast: green
+  Average: amber
+  Slow: red
+- Add “Manage monitored pages” button/link.
+- Add “View all page checks” link.
+
+5. Recent Activity
+Improve the Recent Activity card:
+- Make it a vertical timeline.
+- Use small icons and better spacing.
+- Each event should show:
+  action title
+  site name
+  time
+  severity/neutral icon
+- It should look clean and not cluttered.
+
+Important Functional Requirements:
+- Do not remove existing data fetching.
+- Do not break existing APIs.
+- Do not rename backend routes unless required.
+- Keep current functionality working.
+- Preserve Refresh, Add Site, API Test, navigation, and all current action buttons.
+- Make the UI responsive for desktop, tablet, and mobile.
+- On mobile, sidebar should collapse or become drawer-style if existing structure allows.
+- Avoid unnecessary new dependencies unless already available.
+- Use existing component patterns if present.
+- If Tailwind is available, use Tailwind classes.
+- If CSS modules/plain CSS are used, update the existing styles cleanly.
+
+UX Improvements:
+- Reduce visual clutter.
+- Improve alignment and spacing.
+- Make cards consistent in height, padding, border radius, and typography.
+- Avoid too many bright colors.
+- Use color only for meaning: green healthy, amber warning, red critical, blue informational.
+- Use more helpful empty states if data is missing.
+- Add subtle loading/skeleton states if dashboard data is loading.
+- Add hover states for clickable cards, rows, and buttons.
+- Make all badges consistent.
+
+Copy/Text Improvements:
+Use professional SaaS copy:
+- “Monitor connected WordPress sites, update pressure, and sync freshness.”
+- “View full health report”
+- “View all actions”
+- “Manage monitored pages”
+- “View updates”
+- “Coverage Score”
+- “Important Pages Unmonitored”
+
+Specific Visual Goal:
+The redesigned dashboard should look closer to a polished SaaS like Linear, Vercel, Better Stack, Sentry, or modern monitoring tools, but still remain simple and business-friendly.
+
+Do not create a completely different product. Improve the existing SitePulse dashboard into a premium SaaS dashboard.
+
+After completing:
+1. Tell me exactly which files were changed.
+2. Summarize UI/UX improvements made.
+3. Confirm that no backend/API logic was broken.
+4. Mention any assumptions.
