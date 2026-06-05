@@ -605,6 +605,7 @@
 
 .dashboard-page .table-wrap {
   overflow-x: auto;
+  padding-right: 14px;
 }
 
 .dashboard-page table {
