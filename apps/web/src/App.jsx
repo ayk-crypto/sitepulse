@@ -293,6 +293,22 @@ function DashboardIcon({ type = 'info' }) {
   )
 }
 
+function InsightIcon({ type = 'activity' }) {
+  const paths = {
+    critical: ['M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86z', 'M12 8v4', 'M12 16h.01'],
+    warning: ['M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', 'M12 9v4', 'M12 17h.01'],
+    activity: ['M22 12h-4l-3 9L9 3l-3 9H2'],
+    updates: ['M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z', 'M3.27 6.96 12 12.01l8.73-5.05', 'M12 22.08V12'],
+    sync: ['M21 12a9 9 0 1 1-2.64-6.36', 'M21 3v5h-5'],
+    healthy: ['M22 11.08V12a10 10 0 1 1-5.93-9.14', 'M22 4 12 14.01l-3-3'],
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {(paths[type] || paths.activity).map((path) => <path key={path} d={path} />)}
+    </svg>
+  )
+}
+
 function StatusBadge({ status = 'unknown' }) {
   return <span className={`status status-${status || 'unknown'}`}>{status || 'unknown'}</span>
 }
@@ -3643,7 +3659,7 @@ function OperationalInsights({ insights }) {
         {insights.map((insight, index) => (
           <div className={`insight-row insight-${insight.severity}`} key={`${insight.title}-${index}`}>
             <span className={`insight-icon dashboard-badge-${insight.severity === 'healthy' ? 'success' : insight.severity}`}>
-              <DashboardIcon type={insight.icon} />
+              <InsightIcon type={insight.icon} />
             </span>
             <div className="insight-text">
               <strong className="insight-title">{insight.title}</strong>
