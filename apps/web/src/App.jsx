@@ -797,7 +797,6 @@ function TopBar({ apiBaseUrl, apiStatus, currentUser, onRefresh, onLogout }) {
   return (
     <header className="top-bar">
       <div className="top-identity">
-        <span className="eyebrow">Internal MVP</span>
         <h1>SitePulse Dashboard</h1>
       </div>
       <div className="top-utility">
