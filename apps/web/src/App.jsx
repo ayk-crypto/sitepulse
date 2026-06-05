@@ -1682,6 +1682,8 @@ function SitesPage({ request, apiBaseUrl, hasToken, currentUser }) {
   const [copyLabel, setCopyLabel] = useState('Copy')
   const [form, setForm] = useState({ clientId: '', siteName: '', siteUrl: '' })
   const [showArchived, setShowArchived] = useState(false)
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -1821,202 +1823,311 @@ function SitesPage({ request, apiBaseUrl, hasToken, currentUser }) {
     }
   }
 
+  const alertsBySite = openAlerts.reduce((acc, alert) => {
+    const siteId = alert.siteId || alert.site?.id
+    if (!siteId) return acc
+    acc[siteId] = [...(acc[siteId] || []), alert]
+    return acc
+  }, {})
+
+  const isAttention = (site) => !site.status || ['warning', 'critical', 'unknown'].includes(site.status)
+  const counts = {
+    all: sites.length,
+    healthy: sites.filter((site) => site.status === 'healthy').length,
+    attention: sites.filter((site) => isAttention(site)).length,
+    updates: sites.filter((site) => (site.pluginUpdatesCount || 0) > 0).length,
+  }
+  const bandTiles = [
+    { key: 'all', tone: 'open', label: 'Total Sites', foot: 'All monitored', value: counts.all },
+    { key: 'healthy', tone: 'healthy', label: 'Healthy', foot: 'Operating normally', value: counts.healthy },
+    { key: 'attention', tone: 'critical', label: 'Needs Attention', foot: 'Off the healthy baseline', value: counts.attention },
+    { key: 'updates', tone: 'warning', label: 'Updates Pending', foot: 'Plugins to update', value: counts.updates },
+  ]
+
+  const q = query.trim().toLowerCase()
+  const visibleSites = sites.filter((site) => {
+    if (statusFilter === 'healthy' && site.status !== 'healthy') return false
+    if (statusFilter === 'attention' && !isAttention(site)) return false
+    if (statusFilter === 'updates' && !((site.pluginUpdatesCount || 0) > 0)) return false
+    if (q) {
+      const hay = `${site.siteName || ''} ${getDomain(site.siteUrl)} ${site.clientName || ''}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
+    return true
+  })
+  const activeTile = bandTiles.find((tile) => tile.key === statusFilter)
+  const listTitle = statusFilter === 'all' ? 'All sites' : activeTile?.label || 'Sites'
+  const isFiltered = statusFilter !== 'all' || !!q
+
   return (
-    <section className="page">
+    <section className="page sites-page">
       <PageHeader
         title="Sites"
         description="Onboard websites and review the latest health data from agent syncs."
         action={
           <div className="header-actions">
             <RefreshMeta refreshedAt={lastRefreshed} refreshing={refreshing} />
-            <label className="inline-toggle">
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(event) => setShowArchived(event.target.checked)}
-              />
-              Show archived
-            </label>
-            <button className="secondary-button" type="button" onClick={() => loadData(true)}>
+            <button className="secondary-button small btn-with-icon" type="button" onClick={() => loadData(true)}>
+              <DashboardIcon type="sync" />
               Refresh
             </button>
           </div>
         }
       />
       {!hasToken && <EmptyTokenNotice />}
-      <ErrorState message={error} />
+      <FeedbackBanner message={error} />
+
+      <div className="alert-band site-band">
+        {bandTiles.map((tile) => (
+          <button
+            key={tile.key}
+            type="button"
+            className={`alert-band-tile tone-${tile.tone}${statusFilter === tile.key ? ' is-active' : ''}`}
+            onClick={() => setStatusFilter(statusFilter === tile.key && tile.key !== 'all' ? 'all' : tile.key)}
+          >
+            <span className="alert-band-head">
+              <span className="alert-band-label">{tile.label}</span>
+              <span className="alert-band-dot" />
+            </span>
+            <span className="alert-band-value">{tile.value}</span>
+            <span className="alert-band-foot">{tile.foot}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="alert-toolbar site-toolbar">
+        <div className="alert-toolbar-group site-search-group">
+          <span className="alert-toolbar-label">Search</span>
+          <input
+            className="site-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search by site, domain, or client"
+          />
+        </div>
+        <label className="inline-toggle site-archived-toggle">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(event) => setShowArchived(event.target.checked)}
+          />
+          Show archived
+        </label>
+      </div>
+
       <div className="split-layout sites-layout">
-        <Section title="All sites" meta={refreshing ? 'Refreshing...' : `${sites.length} total`}>
+        <div className="section-card site-list-card">
+          <div className="alert-list-head">
+            <h3>{listTitle}</h3>
+            <span className="alert-list-count">
+              {isFiltered ? `${visibleSites.length} of ${sites.length}` : `${sites.length} total`}
+            </span>
+          </div>
           {loading && !sites.length ? (
-            <TableSkeleton rows={6} />
-          ) : (
-            <SiteTable
-              sites={sites}
-              alertsBySite={openAlerts.reduce((acc, alert) => {
-                const siteId = alert.siteId || alert.site?.id
-                if (!siteId) return acc
-                acc[siteId] = [...(acc[siteId] || []), alert]
-                return acc
-              }, {})}
+            <SiteCardSkeleton />
+          ) : visibleSites.length ? (
+            <SiteGrid
+              sites={visibleSites}
+              alertsBySite={alertsBySite}
               onEdit={canManageSites ? editSite : null}
               onArchive={canAdminSites ? archiveSite : null}
               onRestore={canAdminSites ? restoreSite : null}
               onDelete={canAdminSites ? deleteSite : null}
-              emptyTitle="No sites yet"
-              emptyDescription="Create a site to generate a unique API key for the WordPress plugin."
+            />
+          ) : (
+            <EmptyState
+              title={isFiltered ? 'No sites match' : 'No sites yet'}
+              description={
+                isFiltered
+                  ? 'Try a different search term or filter.'
+                  : 'Create a site to generate a unique API key for the WordPress plugin.'
+              }
             />
           )}
-        </Section>
-        {canManageSites && <Section title="Create site">
-          <form className="stack-form" onSubmit={createSite}>
-            <label>
-              Client
-              <select
-                value={form.clientId}
-                onChange={(event) => setForm({ ...form, clientId: event.target.value })}
-                required
-              >
-                <option value="">Select a client</option>
-                {clients.filter((client) => !client.isArchived).map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Site name
-              <input
-                value={form.siteName}
-                onChange={(event) => setForm({ ...form, siteName: event.target.value })}
-                placeholder="ThincsCorp Website"
-                required
-              />
-            </label>
-            <label>
-              Site URL
-              <input
-                value={form.siteUrl}
-                onChange={(event) => setForm({ ...form, siteUrl: event.target.value })}
-                placeholder="https://thincscorp.com"
-                required
-              />
-            </label>
-            <button className="primary-button" type="submit" disabled={creating}>
-              {creating ? 'Creating...' : 'Create Site'}
-            </button>
-          </form>
-          {createdApiKey && (
-            <div className="api-key-box">
-              <strong>API key shown once</strong>
-              <p>Copy this key into the WordPress plugin now. It is not stored in plain text.</p>
-              <div className="copy-row">
-                <input readOnly value={createdApiKey} onFocus={(event) => event.target.select()} />
-                <button className="secondary-button" type="button" onClick={copyApiKey}>
-                  {copyLabel}
-                </button>
-              </div>
+        </div>
+        {canManageSites && (
+          <section className="section-card create-site-card">
+            <div className="create-site-head">
+              <h3>Create site</h3>
+              <p>Generate a unique API key for the WordPress plugin.</p>
             </div>
-          )}
-        </Section>}
+            <form className="stack-form" onSubmit={createSite}>
+              <label>
+                Client
+                <select
+                  value={form.clientId}
+                  onChange={(event) => setForm({ ...form, clientId: event.target.value })}
+                  required
+                >
+                  <option value="">Select a client</option>
+                  {clients.filter((client) => !client.isArchived).map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Site name
+                <input
+                  value={form.siteName}
+                  onChange={(event) => setForm({ ...form, siteName: event.target.value })}
+                  placeholder="ThincsCorp Website"
+                  required
+                />
+              </label>
+              <label>
+                Site URL
+                <input
+                  value={form.siteUrl}
+                  onChange={(event) => setForm({ ...form, siteUrl: event.target.value })}
+                  placeholder="https://thincscorp.com"
+                  required
+                />
+              </label>
+              <button className="primary-button" type="submit" disabled={creating}>
+                {creating ? 'Creating...' : 'Create Site'}
+              </button>
+            </form>
+            {createdApiKey && (
+              <div className="api-key-box">
+                <strong>API key shown once</strong>
+                <p>Copy this key into the WordPress plugin now. It is not stored in plain text.</p>
+                <div className="copy-row">
+                  <input readOnly value={createdApiKey} onFocus={(event) => event.target.select()} />
+                  <button className="secondary-button" type="button" onClick={copyApiKey}>
+                    {copyLabel}
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </section>
   )
 }
 
-function SiteTable({
-  sites,
-  compact = false,
-  alertsBySite = {},
-  onEdit,
-  onArchive,
-  onRestore,
-  onDelete,
-  emptyTitle,
-  emptyDescription,
-}) {
-  if (!sites.length) {
-    return (
-      <EmptyState
-        title={emptyTitle || 'No sites to show'}
-        description={emptyDescription || 'Create or sync a site to populate this view.'}
-      />
-    )
-  }
+function SiteGrid({ sites, alertsBySite = {}, onEdit, onArchive, onRestore, onDelete }) {
+  return (
+    <div className="site-grid">
+      {sites.map((site) => (
+        <SiteCard
+          key={site.id}
+          site={site}
+          alerts={alertsBySite[site.id] || []}
+          onEdit={onEdit}
+          onArchive={onArchive}
+          onRestore={onRestore}
+          onDelete={onDelete}
+        />
+      ))}
+    </div>
+  )
+}
+
+function SiteCard({ site, alerts = [], onEdit, onArchive, onRestore, onDelete }) {
+  const issueReasons = getTopIssueReasons(alerts)
+  const fresh = getSyncFreshness(site.lastSeenAt)
+  const updates = site.pluginUpdatesCount || 0
+  const alertCount = alerts.length
+  const hasActions = onEdit || onArchive || onRestore || onDelete
+  const status = site.status || 'unknown'
+
+  const open = () => setRouteHash(`sites/${site.id}`)
 
   return (
-    <div className="table-wrap">
-      <table className="sites-table">
-        <thead>
-          <tr>
-            <th>Website</th>
-            {!compact && <th>Client</th>}
-            <th>Status</th>
-            <th>Last seen</th>
-            <th>Plugin updates</th>
-            {!compact && (onEdit || onArchive || onRestore || onDelete) && <th>Actions</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {sites.map((site) => {
-            const issueReasons = getTopIssueReasons(alertsBySite[site.id] || [])
+    <div
+      className={`site-card rail-${status}${site.isArchived ? ' is-archived' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          open()
+        }
+      }}
+    >
+      <div className="site-card-top">
+        <div className="site-avatar">{getInitials(getDomain(site.siteUrl))}</div>
+        <div className="site-card-id">
+          <strong>{site.siteName}</strong>
+          <span>{getDomain(site.siteUrl)}</span>
+        </div>
+        <StatusBadge status={site.status} />
+      </div>
 
-            return (
-              <tr key={site.id} className={`click-row ${site.isArchived ? 'archived-row' : ''}`} onClick={() => setRouteHash(`sites/${site.id}`)}>
-                <td>
-                  <div className="site-cell">
-                    <div className="site-avatar">{getInitials(getDomain(site.siteUrl))}</div>
-                    <div>
-                      <strong>{site.siteName}</strong>
-                      <span>{getDomain(site.siteUrl)}</span>
-                      {site.isArchived && <span className="issue-reasons">Archived</span>}
-                      {!!issueReasons.length && <span className="issue-reasons">{issueReasons.join(' · ')}</span>}
-                    </div>
-                  </div>
-                </td>
-                {!compact && <td>{site.clientName}</td>}
-                <td>
-                  <StatusBadge status={site.status} />
-                </td>
-                <td>
-                  <strong className="date-primary">{formatRelativeTime(site.lastSeenAt)}</strong>
-                  <span>{formatDate(site.lastSeenAt)}</span>
-                </td>
-                <td>
-                  <CountBadge value={site.pluginUpdatesCount} />
-                </td>
-                {!compact && (onEdit || onArchive || onRestore || onDelete) && (
-                  <td>
-                    <div className="row-actions" onClick={(event) => event.stopPropagation()}>
-                      {onEdit && (
-                        <button className="secondary-button small" type="button" onClick={() => onEdit(site)}>
-                          Edit
-                        </button>
-                      )}
-                      {site.isArchived
-                        ? onRestore && (
-                            <button className="secondary-button small" type="button" onClick={() => onRestore(site)}>
-                              Restore
-                            </button>
-                          )
-                        : onArchive && (
-                            <button className="secondary-button small" type="button" onClick={() => onArchive(site)}>
-                              Archive
-                            </button>
-                          )}
-                      {onDelete && (
-                        <button className="danger-button small" type="button" onClick={() => onDelete(site)}>
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                )}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      <div className="site-card-meta">
+        <span className={`sync-chip sync-${fresh.tone}`}>
+          <i className="sync-dot" />
+          {fresh.label}
+        </span>
+        <span className={`sync-chip ${updates > 0 ? 'is-updates' : ''}`}>
+          {updates > 0 ? `${updates} update${updates === 1 ? '' : 's'}` : 'Up to date'}
+        </span>
+        {alertCount > 0 && (
+          <span className="sync-chip is-alerts">
+            {alertCount} open alert{alertCount === 1 ? '' : 's'}
+          </span>
+        )}
+        {site.isArchived && <span className="sync-chip is-archived-chip">Archived</span>}
+      </div>
+
+      <div className="site-card-foot">
+        <span className="site-card-client">{site.clientName || 'No client'}</span>
+        {!!issueReasons.length && <span className="site-card-issues">{issueReasons.join(' · ')}</span>}
+      </div>
+
+      {hasActions && (
+        <div className="site-card-actions" onClick={(event) => event.stopPropagation()}>
+          {onEdit && (
+            <button className="secondary-button small" type="button" onClick={() => onEdit(site)}>
+              Edit
+            </button>
+          )}
+          {site.isArchived
+            ? onRestore && (
+                <button className="secondary-button small" type="button" onClick={() => onRestore(site)}>
+                  Restore
+                </button>
+              )
+            : onArchive && (
+                <button className="secondary-button small" type="button" onClick={() => onArchive(site)}>
+                  Archive
+                </button>
+              )}
+          {onDelete && (
+            <button className="danger-button small" type="button" onClick={() => onDelete(site)}>
+              Delete
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SiteCardSkeleton({ count = 6 }) {
+  return (
+    <div className="site-grid">
+      {Array.from({ length: count }).map((_, index) => (
+        <div className="site-card is-skeleton" key={index}>
+          <div className="site-card-top">
+            <div className="skeleton-avatar" />
+            <div className="site-card-id">
+              <div className="skeleton-line medium" />
+              <div className="skeleton-line short" />
+            </div>
+          </div>
+          <div className="site-card-meta">
+            <div className="skeleton-pill" />
+            <div className="skeleton-pill" />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
