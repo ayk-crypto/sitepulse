@@ -27,6 +27,7 @@ model Tenant {
   users     User[]
   clients   Client[]
   sites     Site[]
+  pageInventory SitePageInventory[]
   findings  Finding[]
   alerts    Alert[]
 }
@@ -40,6 +41,8 @@ model Client {
   email         String?
   phone         String?
   notes         String?
+  isArchived    Boolean  @default(false)
+  archivedAt    DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   sites         Site[]
@@ -60,11 +63,14 @@ model Site {
   pageCheckIntervalHours Int     @default(12)
   lastPageCheckAt DateTime?
   nextPageCheckAt DateTime?
+  isArchived     Boolean         @default(false)
+  archivedAt     DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   snapshots      SiteSnapshot[]
   plugins        SitePlugin[]
   monitoredPages MonitoredPage[]
+  pageInventory  SitePageInventory[]
   findings       Finding[]
   alerts         Alert[]
 }
@@ -120,6 +126,30 @@ model PageCheck {
   errorDetected   Boolean       @default(false)
   errorSummary    String?
   checkedAt       DateTime      @default(now())
+}
+
+model SitePageInventory {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  siteId               String
+  site                 Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  title                String
+  url                  String
+  postType             String?
+  status               String?
+  modifiedAt           DateTime?
+  importance           String   @default("normal")
+  recommendationReason String?
+  isMonitored          Boolean  @default(false)
+  firstSeenAt          DateTime @default(now())
+  lastSeenAt           DateTime @default(now())
+  isActive             Boolean  @default(true)
+  fingerprint          String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([siteId, fingerprint])
 }
 
 model Finding {

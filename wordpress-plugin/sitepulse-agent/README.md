@@ -32,6 +32,8 @@ Click **Sync Now** on the SitePulse settings page. The plugin sends WordPress, t
 http://localhost:4000/api/agent/sync
 ```
 
+The sync payload also includes published WordPress pages so SitePulse can recommend important pages to monitor.
+
 ## Automatic Sync
 
 SitePulse Agent schedules a WP-Cron sync every 12 hours when the plugin is activated. Deactivating the plugin clears the scheduled event. Manual **Sync Now** continues to use the same sync function.

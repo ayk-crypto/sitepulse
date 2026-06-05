@@ -506,6 +506,7 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
     warning: 0,
     critical: 0,
     unknown: 0,
+    unmonitoredImportantPages: 0,
     recentlySyncedSites: [],
   })
   const [recentChecks, setRecentChecks] = useState([])
@@ -627,6 +628,12 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
           <Metric label="Healthy" value={summary.healthy} status="healthy" detail="No active flags" />
           <Metric label="Warning" value={summary.warning} status="warning" detail="Needs attention" />
           <Metric label="Critical" value={summary.critical} status="critical" detail="High-priority risk" />
+          <Metric
+            label="Unmonitored important pages"
+            value={summary.unmonitoredImportantPages || 0}
+            status={summary.unmonitoredImportantPages ? 'warning' : 'healthy'}
+            detail="High-priority discovered pages"
+          />
         </div>
       )}
       <Section title="Recently synced sites">
@@ -797,6 +804,7 @@ function AlertsPage({ request, apiBaseUrl, hasToken }) {
               <option value="">All</option>
               <option value="wordpress">WordPress</option>
               <option value="page-monitor">Page monitor</option>
+              <option value="page-discovery">Page discovery</option>
             </select>
           </label>
         </div>
@@ -917,6 +925,7 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
   const [createdApiKey, setCreatedApiKey] = useState('')
   const [copyLabel, setCopyLabel] = useState('Copy')
   const [form, setForm] = useState({ clientId: '', siteName: '', siteUrl: '' })
+  const [showArchived, setShowArchived] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -925,8 +934,11 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
   const loadData = useCallback(async (force = false) => {
     if (!hasToken) return
 
-    const cachedSites = readCache('sites', apiBaseUrl)
-    const cachedClients = readCache('clients', apiBaseUrl)
+    const sitesCacheName = showArchived ? 'sites:archived' : 'sites'
+    const clientsCacheName = showArchived ? 'clients:archived' : 'clients'
+    const archivedQuery = showArchived ? '?includeArchived=true' : ''
+    const cachedSites = readCache(sitesCacheName, apiBaseUrl)
+    const cachedClients = readCache(clientsCacheName, apiBaseUrl)
     const cachedAlerts = readCache('site-open-alerts', apiBaseUrl)
     const hasCachedData = cachedSites?.data?.sites || cachedClients?.data?.clients
 
@@ -944,12 +956,12 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
 
     try {
       const [sitesData, clientsData, alertsData] = await Promise.all([
-        requestOnce(cacheKey('sites', apiBaseUrl), () => request('/api/admin/sites'), force),
-        requestOnce(cacheKey('clients', apiBaseUrl), () => request('/api/admin/clients'), force),
+        requestOnce(cacheKey(sitesCacheName, apiBaseUrl), () => request(`/api/admin/sites${archivedQuery}`), force),
+        requestOnce(cacheKey(clientsCacheName, apiBaseUrl), () => request(`/api/admin/clients${archivedQuery}`), force),
         requestOnce(cacheKey('site-open-alerts', apiBaseUrl), () => request('/api/admin/alerts?status=open'), force),
       ])
-      const sitesPayload = writeCache('sites', apiBaseUrl, sitesData)
-      writeCache('clients', apiBaseUrl, clientsData)
+      const sitesPayload = writeCache(sitesCacheName, apiBaseUrl, sitesData)
+      writeCache(clientsCacheName, apiBaseUrl, clientsData)
       writeCache('site-open-alerts', apiBaseUrl, alertsData)
       setSites(sitesData.sites || [])
       setClients(clientsData.clients || [])
@@ -961,7 +973,7 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [apiBaseUrl, hasToken, request])
+  }, [apiBaseUrl, hasToken, request, showArchived])
 
   useEffect(() => {
     loadData()
@@ -995,6 +1007,62 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
     setTimeout(() => setCopyLabel('Copy'), 1800)
   }
 
+  async function editSite(site) {
+    const siteName = window.prompt('Site name', site.siteName)
+    if (siteName === null) return
+    const siteUrl = window.prompt('Site URL', site.siteUrl)
+    if (siteUrl === null) return
+    const agentSyncIntervalHours = window.prompt('Agent sync interval hours', site.agentSyncIntervalHours || 12)
+    if (agentSyncIntervalHours === null) return
+    const pageCheckIntervalHours = window.prompt('Page check interval hours', site.pageCheckIntervalHours || 12)
+    if (pageCheckIntervalHours === null) return
+
+    try {
+      await request(`/api/admin/sites/${site.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          siteName,
+          siteUrl,
+          clientId: site.clientId,
+          agentSyncIntervalHours,
+          pageCheckIntervalHours,
+        }),
+      })
+      await loadData(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function archiveSite(site) {
+    if (!window.confirm(`Archive ${site.siteName}?`)) return
+    try {
+      await request(`/api/admin/sites/${site.id}/archive`, { method: 'POST' })
+      await loadData(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function restoreSite(site) {
+    try {
+      await request(`/api/admin/sites/${site.id}/restore`, { method: 'POST' })
+      await loadData(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function deleteSite(site) {
+    if (!window.confirm(`Permanently delete ${site.siteName}? This cannot be undone.`)) return
+    try {
+      await request(`/api/admin/sites/${site.id}?confirm=true`, { method: 'DELETE' })
+      await loadData(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   return (
     <section className="page">
       <PageHeader
@@ -1003,6 +1071,14 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
         action={
           <div className="header-actions">
             <RefreshMeta refreshedAt={lastRefreshed} refreshing={refreshing} />
+            <label className="inline-toggle">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(event) => setShowArchived(event.target.checked)}
+              />
+              Show archived
+            </label>
             <button className="secondary-button" type="button" onClick={() => loadData(true)}>
               Refresh
             </button>
@@ -1024,6 +1100,10 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
                 acc[siteId] = [...(acc[siteId] || []), alert]
                 return acc
               }, {})}
+              onEdit={editSite}
+              onArchive={archiveSite}
+              onRestore={restoreSite}
+              onDelete={deleteSite}
               emptyTitle="No sites yet"
               emptyDescription="Create a site to generate a unique API key for the WordPress plugin."
             />
@@ -1039,7 +1119,7 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
                 required
               >
                 <option value="">Select a client</option>
-                {clients.map((client) => (
+                {clients.filter((client) => !client.isArchived).map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.name}
                   </option>
@@ -1086,7 +1166,17 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
   )
 }
 
-function SiteTable({ sites, compact = false, alertsBySite = {}, emptyTitle, emptyDescription }) {
+function SiteTable({
+  sites,
+  compact = false,
+  alertsBySite = {},
+  onEdit,
+  onArchive,
+  onRestore,
+  onDelete,
+  emptyTitle,
+  emptyDescription,
+}) {
   if (!sites.length) {
     return (
       <EmptyState
@@ -1106,6 +1196,7 @@ function SiteTable({ sites, compact = false, alertsBySite = {}, emptyTitle, empt
             <th>Status</th>
             <th>Last seen</th>
             <th>Plugin updates</th>
+            {!compact && (onEdit || onArchive || onRestore || onDelete) && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
@@ -1113,13 +1204,14 @@ function SiteTable({ sites, compact = false, alertsBySite = {}, emptyTitle, empt
             const issueReasons = getTopIssueReasons(alertsBySite[site.id] || [])
 
             return (
-              <tr key={site.id} className="click-row" onClick={() => setRouteHash(`sites/${site.id}`)}>
+              <tr key={site.id} className={`click-row ${site.isArchived ? 'archived-row' : ''}`} onClick={() => setRouteHash(`sites/${site.id}`)}>
                 <td>
                   <div className="site-cell">
                     <div className="site-avatar">{getInitials(getDomain(site.siteUrl))}</div>
                     <div>
                       <strong>{site.siteName}</strong>
                       <span>{getDomain(site.siteUrl)}</span>
+                      {site.isArchived && <span className="issue-reasons">Archived</span>}
                       {!!issueReasons.length && <span className="issue-reasons">{issueReasons.join(' · ')}</span>}
                     </div>
                   </div>
@@ -1135,6 +1227,33 @@ function SiteTable({ sites, compact = false, alertsBySite = {}, emptyTitle, empt
                 <td>
                   <CountBadge value={site.pluginUpdatesCount} />
                 </td>
+                {!compact && (onEdit || onArchive || onRestore || onDelete) && (
+                  <td>
+                    <div className="row-actions" onClick={(event) => event.stopPropagation()}>
+                      {onEdit && (
+                        <button className="secondary-button small" type="button" onClick={() => onEdit(site)}>
+                          Edit
+                        </button>
+                      )}
+                      {site.isArchived
+                        ? onRestore && (
+                            <button className="secondary-button small" type="button" onClick={() => onRestore(site)}>
+                              Restore
+                            </button>
+                          )
+                        : onArchive && (
+                            <button className="secondary-button small" type="button" onClick={() => onArchive(site)}>
+                              Archive
+                            </button>
+                          )}
+                      {onDelete && (
+                        <button className="danger-button small" type="button" onClick={() => onDelete(site)}>
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             )
           })}
@@ -1197,18 +1316,25 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
   const [site, setSite] = useState(null)
   const [relatedAlerts, setRelatedAlerts] = useState([])
   const [pages, setPages] = useState([])
+  const [discoveredPages, setDiscoveredPages] = useState([])
+  const [selectedDiscoveredPages, setSelectedDiscoveredPages] = useState([])
+  const [discoveryFilter, setDiscoveryFilter] = useState('all')
   const [pageForm, setPageForm] = useState({ label: '', url: '' })
   const [error, setError] = useState('')
   const [pageError, setPageError] = useState('')
+  const [discoveryError, setDiscoveryError] = useState('')
   const [loading, setLoading] = useState(false)
   const [pagesLoading, setPagesLoading] = useState(false)
+  const [discoveryLoading, setDiscoveryLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [pageActionId, setPageActionId] = useState('')
   const [checkingAll, setCheckingAll] = useState(false)
   const [addingPage, setAddingPage] = useState(false)
+  const [addingDiscovered, setAddingDiscovered] = useState(false)
 
   const detailCacheName = `site:${siteId}`
   const pagesCacheName = `site:${siteId}:pages`
+  const discoveredPagesCacheName = `site:${siteId}:discovered-pages`
 
   const loadSite = useCallback(async (force = false) => {
     if (!hasToken || !siteId) return
@@ -1297,6 +1423,38 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
     loadPages()
   }, [loadPages])
 
+  const loadDiscoveredPages = useCallback(async (force = false) => {
+    if (!hasToken || !siteId) return
+
+    const cached = readCache(discoveredPagesCacheName, apiBaseUrl)
+
+    if (cached?.data?.pages && !force) {
+      setDiscoveredPages(cached.data.pages || [])
+    } else {
+      setDiscoveryLoading(true)
+    }
+
+    setDiscoveryError('')
+
+    try {
+      const data = await requestOnce(
+        cacheKey(discoveredPagesCacheName, apiBaseUrl),
+        () => request(`/api/admin/sites/${siteId}/discovered-pages?active=true`),
+        force,
+      )
+      writeCache(discoveredPagesCacheName, apiBaseUrl, data)
+      setDiscoveredPages(data.pages || [])
+    } catch (err) {
+      setDiscoveryError(err.message)
+    } finally {
+      setDiscoveryLoading(false)
+    }
+  }, [apiBaseUrl, discoveredPagesCacheName, hasToken, request, siteId])
+
+  useEffect(() => {
+    loadDiscoveredPages()
+  }, [loadDiscoveredPages])
+
   async function addMonitoredPage(event) {
     event.preventDefault()
     setAddingPage(true)
@@ -1308,7 +1466,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
         body: JSON.stringify(pageForm),
       })
       setPageForm({ label: '', url: '' })
-      await loadPages(true)
+      await Promise.all([loadPages(true), loadDiscoveredPages(true)])
     } catch (err) {
       setPageError(err.message)
     } finally {
@@ -1340,7 +1498,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
       await request(`/api/admin/pages/${pageId}`, {
         method: 'DELETE',
       })
-      await loadPages(true)
+      await Promise.all([loadPages(true), loadDiscoveredPages(true)])
     } catch (err) {
       setPageError(err.message)
     } finally {
@@ -1364,6 +1522,42 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
     }
   }
 
+  async function discoverPages() {
+    setDiscoveryLoading(true)
+    setDiscoveryError('')
+
+    try {
+      const data = await request(`/api/admin/sites/${siteId}/discover-pages`, {
+        method: 'POST',
+      })
+      setDiscoveredPages(data.pages || [])
+      if (data.message) setDiscoveryError(data.message)
+      await loadDiscoveredPages(true)
+    } catch (err) {
+      setDiscoveryError(err.message)
+    } finally {
+      setDiscoveryLoading(false)
+    }
+  }
+
+  async function addSelectedDiscoveredPages() {
+    setAddingDiscovered(true)
+    setDiscoveryError('')
+
+    try {
+      await request(`/api/admin/sites/${siteId}/discovered-pages/add-to-monitoring`, {
+        method: 'POST',
+        body: JSON.stringify({ pageInventoryIds: selectedDiscoveredPages }),
+      })
+      setSelectedDiscoveredPages([])
+      await Promise.all([loadPages(true), loadDiscoveredPages(true)])
+    } catch (err) {
+      setDiscoveryError(err.message)
+    } finally {
+      setAddingDiscovered(false)
+    }
+  }
+
   const snapshot = site?.latestSnapshot
   const updateCount = snapshot?.pluginUpdatesCount ?? 0
   const flags = [
@@ -1373,6 +1567,15 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
     snapshot?.fileEditorEnabled && 'File editor enabled',
   ].filter(Boolean)
   const topAlertReasons = getTopIssueReasons(relatedAlerts, 3)
+  const filteredDiscoveredPages = discoveredPages.filter((page) => {
+    if (discoveryFilter === 'high') return page.importance === 'high'
+    if (discoveryFilter === 'unmonitored') return !page.isMonitored
+    if (discoveryFilter === 'new') {
+      return page.firstSeenAt && Date.now() - new Date(page.firstSeenAt).getTime() < 7 * 24 * 60 * 60 * 1000
+    }
+    return true
+  })
+  const hasHighUnmonitored = discoveredPages.some((page) => page.importance === 'high' && !page.isMonitored)
 
   return (
     <section className="page">
@@ -1510,6 +1713,70 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
             </div>
           </Section>
 
+          <Section
+            title="Discovered Pages"
+            meta={discoveryLoading ? 'Loading...' : `${filteredDiscoveredPages.length} shown`}
+            action={
+              <div className="header-actions">
+                <button className="secondary-button" type="button" onClick={discoverPages}>
+                  Discover Pages
+                </button>
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={addSelectedDiscoveredPages}
+                  disabled={addingDiscovered || !selectedDiscoveredPages.length}
+                >
+                  {addingDiscovered ? 'Adding...' : 'Add selected to monitoring'}
+                </button>
+              </div>
+            }
+          >
+            <ErrorState message={discoveryError} />
+            {hasHighUnmonitored && (
+              <div className="state-box warning-state">
+                High-priority pages discovered that are not monitored.
+              </div>
+            )}
+            <div className="filter-row compact-filter-row">
+              {[
+                ['all', 'All'],
+                ['high', 'High importance'],
+                ['unmonitored', 'Unmonitored'],
+                ['new', 'Newly discovered'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  className={discoveryFilter === value ? 'primary-button small' : 'secondary-button small'}
+                  type="button"
+                  onClick={() => setDiscoveryFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {discoveryLoading && !discoveredPages.length ? (
+              <TableSkeleton rows={4} />
+            ) : (
+              <DiscoveredPagesTable
+                pages={filteredDiscoveredPages}
+                selectedIds={selectedDiscoveredPages}
+                onToggle={(pageId) =>
+                  setSelectedDiscoveredPages((current) =>
+                    current.includes(pageId)
+                      ? current.filter((id) => id !== pageId)
+                      : [...current, pageId],
+                  )
+                }
+              />
+            )}
+            {!discoveredPages.length && !discoveryLoading && (
+              <div className="state-box token-state">
+                Run WordPress Agent sync first if no discovered pages appear.
+              </div>
+            )}
+          </Section>
+
           <Section title="Snapshot History">
             <SnapshotTable snapshots={site.snapshots || []} />
           </Section>
@@ -1608,6 +1875,72 @@ function MonitoredPagesTable({ pages, actionId, onCheck, onDelete }) {
               </tr>
             )
           })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ImportanceBadge({ importance }) {
+  const normalized = importance || 'normal'
+  return <span className={`importance-badge importance-${normalized}`}>{normalized}</span>
+}
+
+function DiscoveredPagesTable({ pages, selectedIds, onToggle }) {
+  if (!pages.length) {
+    return (
+      <EmptyState
+        title="No discovered pages"
+        description="Discovered WordPress pages appear after the agent syncs page inventory."
+      />
+    )
+  }
+
+  return (
+    <div className="table-wrap">
+      <table className="discovered-table">
+        <thead>
+          <tr>
+            <th>Select</th>
+            <th>Page</th>
+            <th>Importance</th>
+            <th>Reason</th>
+            <th>Monitoring</th>
+            <th>First seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pages.map((page) => (
+            <tr key={page.id} className={page.importance === 'high' && !page.isMonitored ? 'warning-row' : ''}>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(page.id)}
+                  onChange={() => onToggle(page.id)}
+                  disabled={page.isMonitored}
+                />
+              </td>
+              <td>
+                <strong>{page.title}</strong>
+                <a className="table-link" href={page.url} target="_blank" rel="noreferrer">
+                  {page.url}
+                </a>
+              </td>
+              <td>
+                <ImportanceBadge importance={page.importance} />
+              </td>
+              <td>{page.recommendationReason || 'General page'}</td>
+              <td>
+                <span className={page.isMonitored ? 'count-badge' : 'count-badge attention'}>
+                  {page.isMonitored ? 'Monitored' : 'Not monitored'}
+                </span>
+              </td>
+              <td>
+                <strong className="date-primary">{formatRelativeTime(page.firstSeenAt)}</strong>
+                <span>{formatDate(page.firstSeenAt)}</span>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -1728,6 +2061,7 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
     phone: '',
     notes: '',
   })
+  const [showArchived, setShowArchived] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -1736,7 +2070,9 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
   const loadClients = useCallback(async (force = false) => {
     if (!hasToken) return
 
-    const cached = readCache('clients', apiBaseUrl)
+    const cacheName = showArchived ? 'clients:archived' : 'clients'
+    const archivedQuery = showArchived ? '?includeArchived=true' : ''
+    const cached = readCache(cacheName, apiBaseUrl)
 
     if (cached?.data?.clients && !force) {
       setClients(cached.data.clients || [])
@@ -1749,11 +2085,11 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
 
     try {
       const data = await requestOnce(
-        cacheKey('clients', apiBaseUrl),
-        () => request('/api/admin/clients'),
+        cacheKey(cacheName, apiBaseUrl),
+        () => request(`/api/admin/clients${archivedQuery}`),
         force,
       )
-      writeCache('clients', apiBaseUrl, data)
+      writeCache(cacheName, apiBaseUrl, data)
       setClients(data.clients || [])
     } catch (err) {
       setError(err.message)
@@ -1761,7 +2097,7 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [apiBaseUrl, hasToken, request])
+  }, [apiBaseUrl, hasToken, request, showArchived])
 
   useEffect(() => {
     loadClients()
@@ -1786,15 +2122,85 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
     }
   }
 
+  async function editClient(client) {
+    const name = window.prompt('Client name', client.name)
+    if (name === null) return
+    const contactPerson = window.prompt('Contact person', client.contactPerson || '')
+    if (contactPerson === null) return
+    const email = window.prompt('Email', client.email || '')
+    if (email === null) return
+
+    try {
+      await request(`/api/admin/clients/${client.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name,
+          contactPerson,
+          email,
+          phone: client.phone || '',
+          notes: client.notes || '',
+        }),
+      })
+      await loadClients(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function archiveClient(client) {
+    if (!window.confirm(`Archive ${client.name}?`)) return
+    try {
+      await request(`/api/admin/clients/${client.id}/archive`, { method: 'POST' })
+      await loadClients(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function restoreClient(client) {
+    try {
+      await request(`/api/admin/clients/${client.id}/restore`, { method: 'POST' })
+      await loadClients(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function deleteClient(client) {
+    const force = client.sitesCount > 0
+      ? window.confirm(`${client.name} has active sites. Force delete anyway?`)
+      : window.confirm(`Permanently delete ${client.name}?`)
+    if (!force) return
+
+    try {
+      await request(`/api/admin/clients/${client.id}${client.sitesCount > 0 ? '?force=true' : ''}`, {
+        method: 'DELETE',
+      })
+      await loadClients(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   return (
     <section className="page">
       <PageHeader
         title="Clients"
         description="Manage agency clients before onboarding their WordPress sites."
         action={
-          <button className="secondary-button" type="button" onClick={() => loadClients(true)}>
-            Refresh
-          </button>
+          <div className="header-actions">
+            <label className="inline-toggle">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(event) => setShowArchived(event.target.checked)}
+              />
+              Show archived
+            </label>
+            <button className="secondary-button" type="button" onClick={() => loadClients(true)}>
+              Refresh
+            </button>
+          </div>
         }
       />
       {!hasToken && <EmptyTokenNotice />}
@@ -1804,7 +2210,13 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
           {loading && !clients.length ? (
             <TableSkeleton rows={5} />
           ) : (
-            <ClientTable clients={clients} />
+            <ClientTable
+              clients={clients}
+              onEdit={editClient}
+              onArchive={archiveClient}
+              onRestore={restoreClient}
+              onDelete={deleteClient}
+            />
           )}
         </Section>
         <Section title="Create client">
@@ -1842,7 +2254,7 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
   )
 }
 
-function ClientTable({ clients }) {
+function ClientTable({ clients, onEdit, onArchive, onRestore, onDelete }) {
   if (!clients.length) {
     return (
       <EmptyState
@@ -1861,17 +2273,19 @@ function ClientTable({ clients }) {
             <th>Contact</th>
             <th>Email</th>
             <th>Sites</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {clients.map((client) => (
-            <tr key={client.id}>
+            <tr key={client.id} className={client.isArchived ? 'archived-row' : ''}>
               <td>
                 <div className="site-cell">
                   <div className="client-avatar">{getInitials(client.name)}</div>
                   <div>
                     <strong>{client.name}</strong>
                     <span>{client.notes || 'No notes'}</span>
+                    {client.isArchived && <span className="issue-reasons">Archived</span>}
                   </div>
                 </div>
               </td>
@@ -1879,6 +2293,25 @@ function ClientTable({ clients }) {
               <td>{client.email || 'Not set'}</td>
               <td>
                 <span className="count-badge">{client.sitesCount} sites</span>
+              </td>
+              <td>
+                <div className="row-actions">
+                  <button className="secondary-button small" type="button" onClick={() => onEdit(client)}>
+                    Edit
+                  </button>
+                  {client.isArchived ? (
+                    <button className="secondary-button small" type="button" onClick={() => onRestore(client)}>
+                      Restore
+                    </button>
+                  ) : (
+                    <button className="secondary-button small" type="button" onClick={() => onArchive(client)}>
+                      Archive
+                    </button>
+                  )}
+                  <button className="danger-button small" type="button" onClick={() => onDelete(client)}>
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

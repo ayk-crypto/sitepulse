@@ -325,6 +325,7 @@ function sitepulse_agent_collect_data()
         'debug_mode' => defined('WP_DEBUG') && WP_DEBUG,
         'file_editor_enabled' => $file_editor_enabled,
         'plugins' => sitepulse_agent_collect_plugins($plugin_updates),
+        'pages' => sitepulse_agent_collect_pages(),
     );
 }
 
@@ -368,6 +369,31 @@ function sitepulse_agent_collect_plugins($plugin_updates)
     }
 
     return $plugins;
+}
+
+function sitepulse_agent_collect_pages()
+{
+    $pages = get_pages(
+        array(
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'sort_column' => 'post_modified',
+            'sort_order' => 'DESC',
+        )
+    );
+    $payload = array();
+
+    foreach ($pages as $page) {
+        $payload[] = array(
+            'title' => get_the_title($page),
+            'url' => get_permalink($page),
+            'post_type' => get_post_type($page),
+            'status' => get_post_status($page),
+            'modified_at' => get_post_modified_time(DATE_ATOM, false, $page),
+        );
+    }
+
+    return $payload;
 }
 
 function sitepulse_agent_redirect($message, $type)

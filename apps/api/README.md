@@ -103,6 +103,50 @@ curl -X POST http://localhost:4000/api/admin/scheduler/run-page-checks \
 
 The MVP defaults are WordPress Agent sync every 12 hours and monitored page checks every 12 hours. The backend reports stale agent syncs but does not trigger WordPress sites directly yet.
 
+## Client and Site Management
+
+List archived records when needed:
+
+```bash
+curl "http://localhost:4000/api/admin/sites?includeArchived=true" \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
+Archive and restore a site:
+
+```bash
+curl -X POST http://localhost:4000/api/admin/sites/SITE_ID/archive \
+  -H "x-sitepulse-admin-token: change-me"
+
+curl -X POST http://localhost:4000/api/admin/sites/SITE_ID/restore \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
+Permanent site deletion requires explicit confirmation:
+
+```bash
+curl -X DELETE "http://localhost:4000/api/admin/sites/SITE_ID?confirm=true" \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
+## Page Discovery
+
+List discovered pages from the latest WordPress Agent sync:
+
+```bash
+curl http://localhost:4000/api/admin/sites/SITE_ID/discovered-pages \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
+Add discovered pages to monitoring:
+
+```bash
+curl -X POST http://localhost:4000/api/admin/sites/SITE_ID/discovered-pages/add-to-monitoring \
+  -H "Content-Type: application/json" \
+  -H "x-sitepulse-admin-token: change-me" \
+  -d '{"pageInventoryIds":["PAGE_INVENTORY_ID"]}'
+```
+
 ## Agent sync testing
 
 Configure `DATABASE_URL` in `.env`, run migrations and seed data, then start the API.

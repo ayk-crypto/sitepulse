@@ -109,6 +109,90 @@ function normalizePlugins(plugins) {
     }));
 }
 
+function includeArchived(req) {
+  return String(req.query.includeArchived || "").toLowerCase() === "true";
+}
+
+function toOptionalDate(value) {
+  if (!value) {
+    return undefined;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function normalizeInventoryPages(pages) {
+  if (!Array.isArray(pages)) {
+    return [];
+  }
+
+  return pages
+    .filter((page) => page && typeof page === "object")
+    .map((page) => {
+      const title = toOptionalString(page.title) || "Untitled page";
+      const url = toOptionalString(page.url);
+
+      if (!url) {
+        return null;
+      }
+
+      return {
+        title,
+        url,
+        postType: toOptionalString(page.post_type),
+        status: toOptionalString(page.status),
+        modifiedAt: toOptionalDate(page.modified_at),
+        fingerprint: sha256(url.toLowerCase()),
+      };
+    })
+    .filter(Boolean);
+}
+
+function calculatePageImportance(page) {
+  const haystack = `${page.title} ${page.url}`.toLowerCase();
+  const highTerms = [
+    "home",
+    "contact",
+    "service",
+    "services",
+    "pricing",
+    "quote",
+    "appointment",
+    "booking",
+    "checkout",
+    "cart",
+    "account",
+    "login",
+    "landing",
+  ];
+  const lowTerms = ["privacy", "terms", "policy", "blog", "category", "tag", "author"];
+
+  const highMatch = highTerms.find((term) => haystack.includes(term));
+
+  if (highMatch) {
+    return {
+      importance: "high",
+      recommendationReason: `Matches high-priority page signal: ${highMatch}`,
+    };
+  }
+
+  const lowMatch = lowTerms.find((term) => haystack.includes(term));
+
+  if (lowMatch) {
+    return {
+      importance: "low",
+      recommendationReason: `Matches low-priority content signal: ${lowMatch}`,
+    };
+  }
+
+  return {
+    importance: "normal",
+    recommendationReason: "General published page discovered by WordPress Agent.",
+  };
+}
+
 function calculateSiteStatus({
   coreUpdateAvailable,
   pluginUpdatesCount,
@@ -386,6 +470,7 @@ async function refreshStaleSiteStatuses(tenantId) {
   const sites = await prisma.site.findMany({
     where: {
       tenantId,
+      isArchived: false,
       status: {
         not: "critical",
       },
@@ -430,10 +515,16 @@ function formatSiteListItem(site) {
     siteUrl: site.siteUrl,
     status: site.status,
     lastSeenAt: site.lastSeenAt,
+    agentSyncIntervalHours: site.agentSyncIntervalHours,
+    pageCheckIntervalHours: site.pageCheckIntervalHours,
+    lastPageCheckAt: site.lastPageCheckAt,
+    nextPageCheckAt: site.nextPageCheckAt,
     latestSnapshot,
     pluginUpdatesCount: latestSnapshot ? latestSnapshot.pluginUpdatesCount : null,
     activeThemeName: latestSnapshot ? latestSnapshot.activeThemeName : null,
     wordpressVersion: latestSnapshot ? latestSnapshot.wordpressVersion : null,
+    isArchived: site.isArchived,
+    archivedAt: site.archivedAt,
     createdAt: site.createdAt,
     updatedAt: site.updatedAt,
   };
@@ -588,6 +679,111 @@ async function generatePageCheckAlerts({ page, check }) {
   );
 }
 
+async function syncPageInventory({ site, pages }) {
+  const normalizedPages = normalizeInventoryPages(pages);
+
+  if (!normalizedPages.length) {
+    return {
+      discovered: 0,
+      newUnmonitored: 0,
+    };
+  }
+
+  const now = new Date();
+  const monitoredPages = await prisma.monitoredPage.findMany({
+    where: {
+      siteId: site.id,
+    },
+    select: {
+      url: true,
+    },
+  });
+  const monitoredUrls = new Set(
+    monitoredPages.map((page) => page.url.trim().toLowerCase())
+  );
+  const activeFingerprints = normalizedPages.map((page) => page.fingerprint);
+  let newUnmonitored = 0;
+
+  for (const page of normalizedPages) {
+    const existing = await prisma.sitePageInventory.findUnique({
+      where: {
+        siteId_fingerprint: {
+          siteId: site.id,
+          fingerprint: page.fingerprint,
+        },
+      },
+    });
+    const importance = calculatePageImportance(page);
+    const isMonitored = monitoredUrls.has(page.url.trim().toLowerCase());
+    const inventoryPage = await prisma.sitePageInventory.upsert({
+      where: {
+        siteId_fingerprint: {
+          siteId: site.id,
+          fingerprint: page.fingerprint,
+        },
+      },
+      update: {
+        title: page.title,
+        url: page.url,
+        postType: page.postType,
+        status: page.status,
+        modifiedAt: page.modifiedAt,
+        importance: importance.importance,
+        recommendationReason: importance.recommendationReason,
+        isMonitored,
+        lastSeenAt: now,
+        isActive: true,
+      },
+      create: {
+        tenantId: site.tenantId,
+        siteId: site.id,
+        title: page.title,
+        url: page.url,
+        postType: page.postType,
+        status: page.status,
+        modifiedAt: page.modifiedAt,
+        importance: importance.importance,
+        recommendationReason: importance.recommendationReason,
+        isMonitored,
+        fingerprint: page.fingerprint,
+      },
+    });
+
+    if (!existing && !inventoryPage.isMonitored) {
+      newUnmonitored += 1;
+      await upsertFindingAndAlert({
+        tenantId: site.tenantId,
+        siteId: site.id,
+        source: "page-discovery",
+        severity: inventoryPage.importance === "high" ? "warning" : "info",
+        title: "New unmonitored page detected",
+        description: `${inventoryPage.title} was discovered but is not monitored.`,
+        recommendation:
+          "Review and add this page to monitoring if it is important for leads, sales, or customer experience.",
+        fingerprint: `site:${site.id}:page-inventory:${inventoryPage.fingerprint}:unmonitored`,
+      });
+    }
+  }
+
+  await prisma.sitePageInventory.updateMany({
+    where: {
+      siteId: site.id,
+      fingerprint: {
+        notIn: activeFingerprints,
+      },
+      isActive: true,
+    },
+    data: {
+      isActive: false,
+    },
+  });
+
+  return {
+    discovered: normalizedPages.length,
+    newUnmonitored,
+  };
+}
+
 app.get(
   "/api/admin/clients",
   requireAdminToken,
@@ -596,6 +792,7 @@ app.get(
     const clients = await prisma.client.findMany({
       where: {
         tenantId: tenant.id,
+        ...(includeArchived(req) ? {} : { isArchived: false }),
       },
       orderBy: {
         createdAt: "desc",
@@ -603,7 +800,11 @@ app.get(
       include: {
         _count: {
           select: {
-            sites: true,
+            sites: {
+              where: {
+                isArchived: false,
+              },
+            },
           },
         },
       },
@@ -617,10 +818,154 @@ app.get(
         email: client.email,
         phone: client.phone,
         notes: client.notes,
+        isArchived: client.isArchived,
+        archivedAt: client.archivedAt,
         createdAt: client.createdAt,
         updatedAt: client.updatedAt,
         sitesCount: client._count.sites,
       })),
+    });
+  })
+);
+
+app.patch(
+  "/api/admin/clients/:id",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const existing = await prisma.client.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "Client not found",
+      });
+    }
+
+    const client = await prisma.client.update({
+      where: {
+        id: existing.id,
+      },
+      data: {
+        name: body.name !== undefined ? requireString(body.name, "name") : undefined,
+        contactPerson:
+          body.contactPerson !== undefined ? toOptionalString(body.contactPerson) || null : undefined,
+        email: body.email !== undefined ? toOptionalString(body.email) || null : undefined,
+        phone: body.phone !== undefined ? toOptionalString(body.phone) || null : undefined,
+        notes: body.notes !== undefined ? toOptionalString(body.notes) || null : undefined,
+      },
+    });
+
+    return res.json({
+      client,
+    });
+  })
+);
+
+app.post(
+  "/api/admin/clients/:id/archive",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const client = await prisma.client.updateMany({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      data: {
+        isArchived: true,
+        archivedAt: new Date(),
+      },
+    });
+
+    if (client.count === 0) {
+      return res.status(404).json({
+        error: "Client not found",
+      });
+    }
+
+    return res.json({
+      archived: true,
+    });
+  })
+);
+
+app.post(
+  "/api/admin/clients/:id/restore",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const client = await prisma.client.updateMany({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      data: {
+        isArchived: false,
+        archivedAt: null,
+      },
+    });
+
+    if (client.count === 0) {
+      return res.status(404).json({
+        error: "Client not found",
+      });
+    }
+
+    return res.json({
+      restored: true,
+    });
+  })
+);
+
+app.delete(
+  "/api/admin/clients/:id",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const client = await prisma.client.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      include: {
+        _count: {
+          select: {
+            sites: {
+              where: {
+                isArchived: false,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!client) {
+      return res.status(404).json({
+        error: "Client not found",
+      });
+    }
+
+    if (client._count.sites > 0 && String(req.query.force) !== "true") {
+      return res.status(400).json({
+        error: "Client has active sites. Archive/delete those sites first or retry with ?force=true.",
+      });
+    }
+
+    await prisma.client.delete({
+      where: {
+        id: client.id,
+      },
+    });
+
+    return res.json({
+      deleted: true,
     });
   })
 );
@@ -655,16 +1000,18 @@ app.get(
   asyncHandler(async (req, res) => {
     const tenant = await getDefaultTenant();
     await refreshStaleSiteStatuses(tenant.id);
-    const [totalSites, statusCounts, recentlySyncedSites] = await Promise.all([
+    const [totalSites, statusCounts, recentlySyncedSites, unmonitoredImportantPages] = await Promise.all([
       prisma.site.count({
         where: {
           tenantId: tenant.id,
+          isArchived: false,
         },
       }),
       prisma.site.groupBy({
         by: ["status"],
         where: {
           tenantId: tenant.id,
+          isArchived: false,
         },
         _count: {
           status: true,
@@ -673,6 +1020,7 @@ app.get(
       prisma.site.findMany({
         where: {
           tenantId: tenant.id,
+          isArchived: false,
           lastSeenAt: {
             not: null,
           },
@@ -693,6 +1041,17 @@ app.get(
               createdAt: "desc",
             },
             take: 1,
+          },
+        },
+      }),
+      prisma.sitePageInventory.count({
+        where: {
+          tenantId: tenant.id,
+          importance: "high",
+          isMonitored: false,
+          isActive: true,
+          site: {
+            isArchived: false,
           },
         },
       }),
@@ -721,6 +1080,7 @@ app.get(
       warning: counts.warning,
       critical: counts.critical,
       unknown: counts.unknown,
+      unmonitoredImportantPages,
       recentlySyncedSites: recentlySyncedSites.map(formatSiteListItem),
     });
   })
@@ -737,6 +1097,9 @@ app.get(
         prisma.alert.count({
           where: {
             tenantId: tenant.id,
+            site: {
+              isArchived: false,
+            },
             status: {
               in: ["open", "acknowledged", "snoozed"],
             },
@@ -745,6 +1108,9 @@ app.get(
         prisma.alert.count({
           where: {
             tenantId: tenant.id,
+            site: {
+              isArchived: false,
+            },
             severity: "critical",
             status: {
               in: ["open", "acknowledged", "snoozed"],
@@ -754,6 +1120,9 @@ app.get(
         prisma.alert.count({
           where: {
             tenantId: tenant.id,
+            site: {
+              isArchived: false,
+            },
             severity: "warning",
             status: {
               in: ["open", "acknowledged", "snoozed"],
@@ -763,6 +1132,9 @@ app.get(
         prisma.alert.count({
           where: {
             tenantId: tenant.id,
+            site: {
+              isArchived: false,
+            },
             status: "resolved",
             resolvedAt: {
               gte: since,
@@ -772,6 +1144,9 @@ app.get(
         prisma.alert.findMany({
           where: {
             tenantId: tenant.id,
+            site: {
+              isArchived: false,
+            },
             status: {
               in: ["open", "acknowledged", "snoozed"],
             },
@@ -809,6 +1184,9 @@ app.get(
     const tenant = await getDefaultTenant();
     const where = {
       tenantId: tenant.id,
+      site: {
+        isArchived: false,
+      },
     };
 
     if (req.query.status) {
@@ -981,6 +1359,7 @@ app.get(
     const sites = await prisma.site.findMany({
       where: {
         tenantId: tenant.id,
+        ...(includeArchived(req) ? {} : { isArchived: false }),
       },
       orderBy: {
         createdAt: "desc",
@@ -1017,6 +1396,19 @@ app.post(
     const siteName = requireString(body.siteName, "siteName");
     const siteUrl = requireString(body.siteUrl, "siteUrl");
     const apiKey = crypto.randomBytes(32).toString("hex");
+    const client = await prisma.client.findFirst({
+      where: {
+        id: clientId,
+        tenantId: tenant.id,
+        isArchived: false,
+      },
+    });
+
+    if (!client) {
+      return res.status(400).json({
+        error: "Client not found",
+      });
+    }
 
     const site = await prisma.site.create({
       data: {
@@ -1038,13 +1430,171 @@ app.post(
   })
 );
 
+app.patch(
+  "/api/admin/sites/:id",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const existing = await prisma.site.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "Site not found",
+      });
+    }
+
+    const data = {};
+
+    if (body.siteName !== undefined) data.siteName = requireString(body.siteName, "siteName");
+    if (body.siteUrl !== undefined) data.siteUrl = requireString(body.siteUrl, "siteUrl");
+
+    if (body.clientId !== undefined) {
+      const clientId = requireString(body.clientId, "clientId");
+      const client = await prisma.client.findFirst({
+        where: {
+          id: clientId,
+          tenantId: tenant.id,
+        },
+      });
+
+      if (!client) {
+        return res.status(400).json({
+          error: "Client not found",
+        });
+      }
+
+      data.clientId = clientId;
+    }
+
+    if (body.agentSyncIntervalHours !== undefined) {
+      data.agentSyncIntervalHours = Math.max(1, Number(body.agentSyncIntervalHours) || 12);
+    }
+
+    if (body.pageCheckIntervalHours !== undefined) {
+      data.pageCheckIntervalHours = Math.max(1, Number(body.pageCheckIntervalHours) || 12);
+    }
+
+    const site = await prisma.site.update({
+      where: {
+        id: existing.id,
+      },
+      data,
+    });
+
+    return res.json({
+      site,
+    });
+  })
+);
+
+app.post(
+  "/api/admin/sites/:id/archive",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const site = await prisma.site.updateMany({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      data: {
+        isArchived: true,
+        archivedAt: new Date(),
+      },
+    });
+
+    if (site.count === 0) {
+      return res.status(404).json({
+        error: "Site not found",
+      });
+    }
+
+    return res.json({
+      archived: true,
+    });
+  })
+);
+
+app.post(
+  "/api/admin/sites/:id/restore",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const site = await prisma.site.updateMany({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      data: {
+        isArchived: false,
+        archivedAt: null,
+      },
+    });
+
+    if (site.count === 0) {
+      return res.status(404).json({
+        error: "Site not found",
+      });
+    }
+
+    return res.json({
+      restored: true,
+    });
+  })
+);
+
+app.delete(
+  "/api/admin/sites/:id",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+
+    if (String(req.query.confirm) !== "true") {
+      return res.status(400).json({
+        error: "Permanent site delete requires ?confirm=true",
+      });
+    }
+
+    const site = await prisma.site.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+    });
+
+    if (!site) {
+      return res.status(404).json({
+        error: "Site not found",
+      });
+    }
+
+    await prisma.site.delete({
+      where: {
+        id: site.id,
+      },
+    });
+
+    return res.json({
+      deleted: true,
+    });
+  })
+);
+
 app.get(
   "/api/admin/sites/:id",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const site = await prisma.site.findUnique({
+    const tenant = await getDefaultTenant();
+    const site = await prisma.site.findFirst({
       where: {
         id: req.params.id,
+        tenantId: tenant.id,
       },
       include: {
         client: true,
@@ -1081,12 +1631,189 @@ app.get(
 );
 
 app.get(
+  "/api/admin/sites/:id/discovered-pages",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const site = await prisma.site.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!site) {
+      return res.status(404).json({
+        error: "Site not found",
+      });
+    }
+
+    const where = {
+      siteId: site.id,
+    };
+
+    if (req.query.importance) {
+      where.importance = String(req.query.importance);
+    }
+
+    if (String(req.query.unmonitored || "").toLowerCase() === "true") {
+      where.isMonitored = false;
+    }
+
+    if (String(req.query.active || "").toLowerCase() === "true") {
+      where.isActive = true;
+    }
+
+    const pages = await prisma.sitePageInventory.findMany({
+      where,
+      orderBy: [
+        {
+          importance: "asc",
+        },
+        {
+          firstSeenAt: "desc",
+        },
+      ],
+    });
+
+    return res.json({
+      pages,
+    });
+  })
+);
+
+app.post(
+  "/api/admin/sites/:id/discovered-pages/add-to-monitoring",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const pageInventoryIds = Array.isArray(body.pageInventoryIds)
+      ? body.pageInventoryIds.filter((id) => typeof id === "string")
+      : [];
+
+    if (!pageInventoryIds.length) {
+      return res.status(400).json({
+        error: "pageInventoryIds is required",
+      });
+    }
+
+    const site = await prisma.site.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!site) {
+      return res.status(404).json({
+        error: "Site not found",
+      });
+    }
+
+    const inventoryPages = await prisma.sitePageInventory.findMany({
+      where: {
+        siteId: site.id,
+        id: {
+          in: pageInventoryIds,
+        },
+      },
+    });
+    const createdPages = [];
+
+    for (const inventoryPage of inventoryPages) {
+      let monitoredPage = await prisma.monitoredPage.findFirst({
+        where: {
+          siteId: site.id,
+          url: inventoryPage.url,
+        },
+      });
+
+      if (!monitoredPage) {
+        monitoredPage = await prisma.monitoredPage.create({
+          data: {
+            siteId: site.id,
+            label: inventoryPage.title,
+            url: inventoryPage.url,
+          },
+        });
+        createdPages.push(monitoredPage);
+      }
+
+      await prisma.sitePageInventory.update({
+        where: {
+          id: inventoryPage.id,
+        },
+        data: {
+          isMonitored: true,
+        },
+      });
+    }
+
+    return res.status(201).json({
+      createdPages,
+    });
+  })
+);
+
+app.post(
+  "/api/admin/sites/:id/discover-pages",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const site = await prisma.site.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!site) {
+      return res.status(404).json({
+        error: "Site not found",
+      });
+    }
+
+    const pages = await prisma.sitePageInventory.findMany({
+      where: {
+        siteId: site.id,
+      },
+      orderBy: {
+        firstSeenAt: "desc",
+      },
+    });
+
+    if (!pages.length) {
+      return res.json({
+        message: "No discovered pages yet. Run WordPress Agent sync first.",
+        pages: [],
+      });
+    }
+
+    return res.json({
+      pages,
+    });
+  })
+);
+
+app.get(
   "/api/admin/sites/:id/pages",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const site = await prisma.site.findUnique({
+    const tenant = await getDefaultTenant();
+    const site = await prisma.site.findFirst({
       where: {
         id: req.params.id,
+        tenantId: tenant.id,
       },
       select: {
         id: true,
@@ -1134,9 +1861,11 @@ app.post(
   requireAdminToken,
   asyncHandler(async (req, res) => {
     const body = req.body && typeof req.body === "object" ? req.body : {};
-    const site = await prisma.site.findUnique({
+    const tenant = await getDefaultTenant();
+    const site = await prisma.site.findFirst({
       where: {
         id: req.params.id,
+        tenantId: tenant.id,
       },
       select: {
         id: true,
@@ -1157,6 +1886,16 @@ app.post(
       },
     });
 
+    await prisma.sitePageInventory.updateMany({
+      where: {
+        siteId: site.id,
+        url: page.url,
+      },
+      data: {
+        isMonitored: true,
+      },
+    });
+
     return res.status(201).json({
       page,
     });
@@ -1173,6 +1912,8 @@ app.delete(
       },
       select: {
         id: true,
+        siteId: true,
+        url: true,
       },
     });
 
@@ -1187,6 +1928,25 @@ app.delete(
         id: req.params.pageId,
       },
     });
+
+    const remaining = await prisma.monitoredPage.count({
+      where: {
+        siteId: page.siteId,
+        url: page.url,
+      },
+    });
+
+    if (remaining === 0) {
+      await prisma.sitePageInventory.updateMany({
+        where: {
+          siteId: page.siteId,
+          url: page.url,
+        },
+        data: {
+          isMonitored: false,
+        },
+      });
+    }
 
     return res.json({
       deleted: true,
@@ -1276,6 +2036,7 @@ app.get(
     const sites = await prisma.site.findMany({
       where: {
         tenantId: tenant.id,
+        isArchived: false,
       },
       include: {
         monitoredPages: {
@@ -1336,6 +2097,7 @@ app.post(
     const sites = await prisma.site.findMany({
       where: {
         tenantId: tenant.id,
+        isArchived: false,
         monitoredPages: {
           some: {
             isActive: true,
@@ -1382,6 +2144,13 @@ app.get(
   requireAdminToken,
   asyncHandler(async (req, res) => {
     const checks = await prisma.pageCheck.findMany({
+      where: {
+        monitoredPage: {
+          site: {
+            isArchived: false,
+          },
+        },
+      },
       orderBy: {
         checkedAt: "desc",
       },
@@ -1520,6 +2289,10 @@ app.post("/api/agent/sync", async (req, res) => {
         fileEditorEnabled,
       },
     });
+    const inventoryResult = await syncPageInventory({
+      site,
+      pages: body.pages,
+    });
     const finalStatus = await updateSiteStatusAfterPageChecks(site.id);
 
     return res.json({
@@ -1527,6 +2300,7 @@ app.post("/api/agent/sync", async (req, res) => {
       site_id: site.id,
       status: finalStatus || status,
       plugin_updates_count: pluginUpdatesCount,
+      discovered_pages_count: inventoryResult.discovered,
       snapshot_id: result.id,
     });
   } catch (error) {
