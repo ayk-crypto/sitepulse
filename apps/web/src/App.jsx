@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import sitepulseIcon from './assets/sitepulse-icon.png'
 import sitepulseLogo from './assets/sitepulse-logo.png'
+import brandLogo from './assets/sitepulse-brand-logo.png'
 import './App.css'
 
 const DEFAULT_API_BASE_URL =
@@ -550,7 +551,6 @@ function LoginPage({ onLogin }) {
     event.preventDefault()
     setError('')
     setLoading(true)
-
     try {
       await onLogin(form)
     } catch (err) {
@@ -563,131 +563,180 @@ function LoginPage({ onLogin }) {
   return (
     <div className="login-shell">
       <section className="login-brand-panel">
-        <SitePulseLogo className="login-logo" />
-        <div className="login-brand-copy">
-          <h1>Monitor website health, <span>uptime, alerts, and key pages.</span></h1>
-          <p>SitePulse helps businesses, agencies, and teams detect website issues early and keep important pages running smoothly.</p>
-        </div>
-        <div className="login-feature-list" aria-label="SitePulse highlights">
-          {[
-            ['health', 'Website Health Monitoring', 'Track uptime, performance, and critical issues.'],
-            ['alerts', 'Instant Alerts', 'Know the moment something needs attention.'],
-            ['pages', 'Critical Page Monitoring', 'Watch forms, key pages, and important content.'],
-          ].map(([type, title, description]) => (
-            <div className="login-feature" key={title}>
-              <span className="login-feature-icon">
-                <LoginFeatureIcon type={type} />
-              </span>
-              <div>
-                <strong>{title}</strong>
-                <p>{description}</p>
-              </div>
+        <div className="login-bg-orb login-bg-orb-1" />
+        <div className="login-bg-orb login-bg-orb-2" />
+        <div className="login-bg-orb login-bg-orb-3" />
+        <div className="login-brand-inner">
+          <img className="login-brand-logo" src={brandLogo} alt="SitePulse by Onset Media" />
+          <div className="login-tagline">
+            <h1>Your command center for <span>WordPress health.</span></h1>
+            <p>Monitor updates, detect issues, and keep every client site running smoothly — all from one dashboard.</p>
+          </div>
+          <div className="login-widget" aria-hidden="true">
+            <div className="login-widget-head">
+              <span className="login-widget-dot green" />
+              <span>Live site status</span>
+              <span className="login-widget-time">Just now</span>
             </div>
-          ))}
-        </div>
-        <div className="login-trust-note">
-          <span>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3l7 3v5c0 4.8-3 8.2-7 10-4-1.8-7-5.2-7-10V6z" />
-              <path d="M9 12l2 2 4-4" />
-            </svg>
-          </span>
-          Reliable monitoring for websites that matter.
+            <div className="login-widget-rows">
+              {[
+                { name: 'acme-corp.com', cls: 'healthy', label: 'Healthy' },
+                { name: 'studio-xyz.io', cls: 'warning', label: 'Warning' },
+                { name: 'greenleaf.co', cls: 'healthy', label: 'Healthy' },
+              ].map(({ name, cls, label }) => (
+                <div key={name} className="login-widget-row">
+                  <span className={`login-widget-dot ${cls}`} />
+                  <span className="login-widget-name">{name}</span>
+                  <span className={`login-widget-badge ${cls}`}>{label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="login-widget-footer">
+              <span>3 sites monitored</span>
+              <span className="login-widget-pulse">● Live</span>
+            </div>
+          </div>
+          <ul className="login-checklist">
+            {[
+              'Real-time WordPress core & plugin monitoring',
+              'Instant alerts for critical site issues',
+              'Automated page health checks & uptime reports',
+            ].map((item) => (
+              <li key={item}>
+                <span className="login-check-icon" aria-hidden="true">
+                  <svg viewBox="0 0 14 14" fill="none">
+                    <path d="M2.5 7l3 3 6-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                {item}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
-      <section className="login-card-panel">
-        <div className="login-card">
-          <div className="login-card-icon">
-            <span className="login-card-icon-ring">
-              <PulseMark size="medium" />
+
+      <section className="login-form-panel">
+        <div className="login-form-wrap">
+          <div className="login-form-top">
+            <span className="login-icon-badge">
+              <img src={sitepulseIcon} alt="" />
             </span>
+            <h2>Welcome back</h2>
+            <p>Sign in to access your workspace</p>
           </div>
-          <h2>Welcome back</h2>
-          <p>Sign in to access your workspace</p>
-          <ErrorState message={error} />
-          <form className="stack-form" onSubmit={submit}>
-            <label>
-              Email address
-              <div className="login-input-shell">
-                <span aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M20 21a8 8 0 0 0-16 0" />
-                    <path d="M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
-                  </svg>
-                </span>
+
+          {error && (
+            <div className="login-error-msg" role="alert">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M10 6v5M10 14h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              {error}
+            </div>
+          )}
+
+          <form className="login-form" onSubmit={submit} noValidate>
+            <div className="lf-field">
+              <label htmlFor="sp-email">Email address</label>
+              <div className="lf-input-wrap">
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="lf-icon">
+                  <rect x="2" y="4.5" width="16" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M2 7.5l8 5 8-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
                 <input
+                  id="sp-email"
                   type="email"
                   value={form.email}
-                  onChange={(event) => setForm({ ...form, email: event.target.value })}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="name@agency.com"
                   required
+                  autoComplete="email"
                 />
               </div>
-            </label>
-            <label>
-              Password
-              <div className="login-input-shell password-field">
-                <span aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M7 11V8a5 5 0 0 1 10 0v3" />
-                    <path d="M6 11h12v10H6z" />
-                  </svg>
-                </span>
+            </div>
+
+            <div className="lf-field">
+              <label htmlFor="sp-password">Password</label>
+              <div className="lf-input-wrap">
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="lf-icon">
+                  <rect x="4" y="9" width="12" height="8.5" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M7 9V7a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
                 <input
+                  id="sp-password"
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
-                  onChange={(event) => setForm({ ...form, password: event.target.value })}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
                   placeholder="Enter your password"
                   required
+                  autoComplete="current-password"
                 />
-                <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                <button
+                  type="button"
+                  className="lf-eye"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
                   {showPassword ? (
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 3l18 18" />
-                      <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" />
-                      <path d="M9.9 5.3A9.7 9.7 0 0 1 12 5c5 0 8.5 4.4 9.5 6.1a1.8 1.8 0 0 1 0 1.8 15.2 15.2 0 0 1-2.7 3.3" />
-                      <path d="M6.7 6.8A15 15 0 0 0 2.5 11a1.8 1.8 0 0 0 0 1.9C3.5 14.6 7 19 12 19a9.9 9.9 0 0 0 4.1-.9" />
+                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M2 10s3.5-6 8-6 8 6 8 6-3.5 6-8 6-8-6-8-6Z" stroke="currentColor" strokeWidth="1.4" />
+                      <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.4" />
+                      <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M2.5 11.1a1.8 1.8 0 0 0 0 1.8C3.5 14.6 7 19 12 19s8.5-4.4 9.5-6.1a1.8 1.8 0 0 0 0-1.8C20.5 9.4 17 5 12 5s-8.5 4.4-9.5 6.1Z" />
-                      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M2 10s3.5-6 8-6 8 6 8 6-3.5 6-8 6-8-6-8-6Z" stroke="currentColor" strokeWidth="1.4" />
+                      <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.4" />
                     </svg>
                   )}
                 </button>
               </div>
-            </label>
-            <div className="login-form-row">
-              <label className="remember-control">
+            </div>
+
+            <div className="lf-extras">
+              <label className="lf-remember">
                 <input
                   type="checkbox"
                   checked={form.remember}
-                  onChange={(event) => setForm({ ...form, remember: event.target.checked })}
+                  onChange={(e) => setForm({ ...form, remember: e.target.checked })}
                 />
-                Remember me
+                <span>Remember me</span>
               </label>
-              <button className="link-button" type="button">Forgot password?</button>
+              <button type="button" className="lf-forgot">Forgot password?</button>
             </div>
-            <button className="primary-button" type="submit" disabled={loading}>
-              {loading ? 'Signing in...' : 'Sign In'}
+
+            <button className="lf-submit" type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <span className="lf-spinner" />
+                  Signing in…
+                </>
+              ) : (
+                <>
+                  Sign In
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M4 10h12M11 5l5 5-5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </>
+              )}
             </button>
           </form>
-          <div className="secured-workspace">
-            <div><span />Secured workspace<span /></div>
-            <p>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 11V8a5 5 0 0 1 10 0v3" />
-                <path d="M6 11h12v10H6z" />
-              </svg>
-              Your data is encrypted and secure
-            </p>
+
+          <div className="lf-secure">
+            <svg viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <path d="M9 1.5L15.5 4V8.5C15.5 12 12.8 14.7 9 16 5.2 14.7 2.5 12 2.5 8.5V4L9 1.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+              <path d="M6 9l2.5 2.5 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            256-bit encrypted &amp; secure session
           </div>
         </div>
-        <div className="login-footer-links">
-          <span>&copy; 2026 Onset Media. All rights reserved.</span>
-          <span>Privacy Policy</span>
-          <span>Terms of Service</span>
-        </div>
+
+        <footer className="lf-footer">
+          © 2026 Onset Media ·{' '}
+          <button type="button" className="lf-footer-link">Privacy Policy</button>
+          {' '}·{' '}
+          <button type="button" className="lf-footer-link">Terms of Service</button>
+        </footer>
       </section>
     </div>
   )
