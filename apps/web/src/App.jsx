@@ -1128,7 +1128,7 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
         <RecommendedActions actions={recommendedActions} />
       </div>
       <div className="dashboard-grid dashboard-grid-secondary">
-        <Section title="Recently Synced Sites" action={<button className="text-button" type="button" onClick={() => setRouteHash('sites')}>View all sites</button>}>
+        <Section title="Recently Synced Sites" action={<button className="text-button" type="button" onClick={() => setRouteHash('sites')}>View all sites</button>} flush>
           {loading && !recentSites.length ? (
             <TableSkeleton rows={4} />
           ) : (
@@ -1152,6 +1152,7 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
               <button className="text-button" type="button" onClick={() => setRouteHash('sites')}>Manage monitored pages</button>
             </div>
           }
+          flush
         >
           {loading && !recentChecks.length ? (
             <TableSkeleton rows={4} />
@@ -2378,7 +2379,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken, currentUser }) 
   )
 }
 
-function Section({ title, meta, action, children }) {
+function Section({ title, meta, action, children, flush = false }) {
   return (
     <div className="section-card">
       <div className="section-title">
@@ -2388,7 +2389,9 @@ function Section({ title, meta, action, children }) {
           {action}
         </div>
       </div>
-      {children}
+      <div className={flush ? 'section-body-flush' : 'section-body'}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -3317,23 +3320,27 @@ function HealthOverview({ score, summary, pluginUpdateTotal, avgResponse }) {
 }
 
 function RecommendedActions({ actions }) {
+  const ctaClass = { critical: 'danger-button small', high: 'primary-button small', medium: 'secondary-button small', low: 'secondary-button small' }
   return (
-    <Section title="Recommended Actions" action={<button className="text-button" type="button" onClick={() => setRouteHash('alerts')}>View all actions</button>}>
+    <Section title="Recommended Actions" action={<button className="text-button" type="button" onClick={() => setRouteHash('alerts')}>View all actions</button>} flush>
       <div className="recommended-actions-list">
         {actions.map((action) => (
-          <div className={`recommended-action recommended-action-${action.priority}`} key={`${action.priority}-${action.title}`}>
-            <DashboardBadge variant={action.priority}>{action.priority}</DashboardBadge>
-            <div>
+          <div className="recommended-action" key={`${action.priority}-${action.title}`}>
+            <div className="recommended-action-badge-col">
+              <DashboardBadge variant={action.priority}>{action.priority}</DashboardBadge>
+            </div>
+            <div className="recommended-action-content">
               <strong>{action.title}</strong>
               <p>{action.description}</p>
+              <div className="recommended-action-footer">
+                {action.site?.siteName && (
+                  <span className="recommended-action-site-tag">{action.site.siteName}</span>
+                )}
+                <button className={ctaClass[action.priority] || 'secondary-button small'} type="button" onClick={() => setRouteHash(action.route)}>
+                  {action.cta}
+                </button>
+              </div>
             </div>
-            <div className="recommended-action-site">
-              <strong>{action.site?.siteName || 'SitePulse site'}</strong>
-              <span>{action.site?.siteUrl ? getDomain(action.site.siteUrl) : 'Connected site'}</span>
-            </div>
-            <button className="secondary-button small" type="button" onClick={() => setRouteHash(action.route)}>
-              {action.cta}
-            </button>
           </div>
         ))}
       </div>
