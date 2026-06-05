@@ -578,6 +578,10 @@
   margin-top: 16px;
 }
 
+.dashboard-grid .section-card + .section-card {
+  margin-top: 0;
+}
+
 .dashboard-page .section-card {
   border-radius: 14px;
   overflow: clip;
