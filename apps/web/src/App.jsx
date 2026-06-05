@@ -503,6 +503,7 @@ function App() {
           currentUser={currentUser}
           onRefresh={checkApiStatus}
           onLogout={logout}
+          activePage={activePage}
         />
         {activePage === 'dashboard' && (
           <DashboardPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!authToken} />
@@ -770,6 +771,7 @@ function Sidebar({ activePage, currentUser }) {
         <BrandLogo />
       </div>
       <nav className="nav-list" aria-label="Primary navigation">
+        <span className="sidebar-nav-label">Menu</span>
         {visibleNavItems.map((item) => (
           <button
             className={activePage === item.id ? 'nav-item active' : 'nav-item'}
@@ -783,47 +785,68 @@ function Sidebar({ activePage, currentUser }) {
           </button>
         ))}
       </nav>
-      <button className="sidebar-add-site" type="button" onClick={() => setRouteHash('sites')}>
-        <span>+</span>
-        <div>
-          <strong>Add New Site</strong>
-          <small>Monitor a WordPress site</small>
-        </div>
-      </button>
-      <div className="sidebar-user">
-        <span className="sidebar-avatar">{getInitials(currentUser?.name)}</span>
-        <div>
-          <strong>{currentUser?.name}</strong>
-          <span>{currentUser?.email || currentUser?.role}</span>
+      <div className="sidebar-bottom">
+        <button className="sidebar-add-site" type="button" onClick={() => setRouteHash('sites')}>
+          <span className="sidebar-add-icon">
+            <svg viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            </svg>
+          </span>
+          <div>
+            <strong>Add New Site</strong>
+            <small>Monitor a WordPress site</small>
+          </div>
+        </button>
+        <div className="sidebar-user">
+          <span className="sidebar-avatar">{getInitials(currentUser?.name)}</span>
+          <div className="sidebar-user-info">
+            <strong>{currentUser?.name}</strong>
+            <span>{currentUser?.email || currentUser?.role}</span>
+          </div>
+          <span className="sidebar-role-badge">{currentUser?.role || 'user'}</span>
         </div>
       </div>
     </aside>
   )
 }
 
-function TopBar({ apiBaseUrl, apiStatus, currentUser, onRefresh, onLogout }) {
+const PAGE_META = {
+  dashboard: { title: 'Dashboard', sub: 'Monitor connected WordPress sites, update pressure, and sync freshness.' },
+  sites: { title: 'Sites', sub: 'Manage and monitor your connected WordPress installations.' },
+  alerts: { title: 'Alerts', sub: 'View and resolve open alerts across all monitored sites.' },
+  'site-detail': { title: 'Site Detail', sub: 'Detailed health report for this WordPress installation.' },
+  clients: { title: 'Clients', sub: 'Manage client accounts and their associated sites.' },
+  reports: { title: 'Reports', sub: 'Generate and review site health reports.' },
+  'report-detail': { title: 'Report Detail', sub: 'Full health report details.' },
+  users: { title: 'Users', sub: 'Manage team members and their access levels.' },
+  settings: { title: 'Settings', sub: 'Configure your SitePulse workspace and integrations.' },
+}
+
+function TopBar({ apiBaseUrl, apiStatus, currentUser, onRefresh, onLogout, activePage }) {
+  const meta = PAGE_META[activePage] || { title: 'SitePulse', sub: '' }
   return (
     <header className="top-bar">
       <div className="top-identity">
-        <h1>SitePulse Dashboard</h1>
+        <h1>{meta.title}</h1>
+        {meta.sub && <p className="top-page-sub">{meta.sub}</p>}
       </div>
       <div className="top-utility">
         <div className="api-pill" title={apiBaseUrl}>
           <span className={`dot ${apiStatus.state}`} />
           <span>{apiStatus.label}</span>
           <code>{apiBaseUrl}</code>
-          <button className="secondary-button small" type="button" onClick={onRefresh}>
-            Test
-          </button>
+          <button className="api-test-btn" type="button" onClick={onRefresh}>Test</button>
         </div>
         <div className="top-user">
           <span className="top-avatar">{getInitials(currentUser?.name)}</span>
           <div>
             <strong>{currentUser?.name}</strong>
-            <span>{currentUser?.email}</span>
+            <span>{currentUser?.role || currentUser?.email}</span>
           </div>
-          <button className="secondary-button small" type="button" onClick={onLogout}>
-            Logout
+          <button className="top-logout-btn" type="button" onClick={onLogout} title="Sign out">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M10.5 2H13a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-2.5M6.5 5L3 8l3.5 3M3 8h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         </div>
       </div>
