@@ -1,613 +1,696 @@
-import React from 'react';
-import {
-  Activity,
-  AlertCircle,
-  AlertTriangle,
-  ArrowRight,
-  Bell,
-  CheckCircle2,
-  ChevronRight,
-  Clock,
-  Files,
-  Globe,
-  LayoutDashboard,
-  RefreshCw,
-  Settings,
-  ShieldAlert,
-  ShieldCheck,
-  Zap,
-} from 'lucide-react';
-
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Progress } from '@/components/ui/progress';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import React from "react";
+import { 
+  Bell, LayoutDashboard, Globe, Users, FileText, Settings, Plus, 
+  ChevronDown, Monitor, ShieldCheck, AlertTriangle, ShieldAlert, FileWarning,
+  Info, Check, RefreshCw, X, FileSearch, Plug, Palette, Server, Activity, ArrowRight,
+  MoreVertical, Clock
+} from "lucide-react";
 
 export function Dashboard() {
-  const currentDate = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
   return (
-    <>
-      <style dangerouslySetInnerHTML={{__html: `
+    <div className="flex h-screen bg-[#f8fafc] font-sans overflow-hidden" style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+      <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        .font-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .bg-slate-sidebar { background-color: #0f172a; }
       `}} />
-      <div className="flex h-screen w-full bg-[#f8fafc] text-slate-900 font-jakarta overflow-hidden">
-        
-        {/* Sidebar */}
-        <aside className="w-64 bg-slate-sidebar text-slate-300 flex flex-col hidden md:flex border-r border-slate-800 shrink-0">
-          <div className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <Activity className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-white font-bold text-lg leading-tight tracking-tight">SitePulse</h1>
-                <p className="text-xs text-slate-500 font-medium">by Onset Media</p>
-              </div>
+      
+      {/* Sidebar */}
+      <div className="w-[220px] bg-[#0f172a] text-white flex flex-col h-full flex-shrink-0">
+        <div className="p-5 flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
+            <Activity size={18} className="text-white" />
+          </div>
+          <div>
+            <div className="font-bold text-white leading-tight">SitePulse</div>
+            <div className="text-xs text-slate-400">Onset Media</div>
+          </div>
+        </div>
+
+        <div className="flex-1 px-3 py-2 space-y-1">
+          <a href="#" className="flex items-center gap-3 px-3 py-2 bg-[#2563eb] text-white rounded-md text-sm font-medium">
+            <LayoutDashboard size={18} />
+            Dashboard
+          </a>
+          <a href="#" className="flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md text-sm font-medium">
+            <Bell size={18} />
+            <span className="flex-1">Alerts</span>
+            <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">2</span>
+          </a>
+          <a href="#" className="flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md text-sm font-medium">
+            <Globe size={18} />
+            Sites
+          </a>
+          <a href="#" className="flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md text-sm font-medium">
+            <Users size={18} />
+            Clients
+          </a>
+          <a href="#" className="flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md text-sm font-medium">
+            <FileText size={18} />
+            Reports
+          </a>
+          <a href="#" className="flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md text-sm font-medium">
+            <Users size={18} />
+            Users
+          </a>
+          <a href="#" className="flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md text-sm font-medium">
+            <Settings size={18} />
+            Settings
+          </a>
+        </div>
+
+        <div className="p-4 border-t border-slate-800">
+          <button className="w-full flex items-center gap-3 mb-4 group text-left">
+            <div className="w-8 h-8 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center shrink-0 group-hover:bg-green-500 group-hover:text-white transition-colors">
+              <Plus size={16} />
             </div>
-          </div>
-
-          <div className="flex-1 px-4 py-2 space-y-1">
-            <a href="#" className="flex items-center gap-3 px-3 py-2 bg-blue-600/10 text-blue-400 rounded-md font-medium">
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 hover:bg-slate-800 hover:text-white transition-colors rounded-md font-medium text-slate-400">
-              <Globe className="w-4 h-4" />
-              Sites
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 hover:bg-slate-800 hover:text-white transition-colors rounded-md font-medium text-slate-400">
-              <Bell className="w-4 h-4" />
-              Alerts
-              <span className="ml-auto bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full">4</span>
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 hover:bg-slate-800 hover:text-white transition-colors rounded-md font-medium text-slate-400">
-              <Files className="w-4 h-4" />
-              Pages
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 hover:bg-slate-800 hover:text-white transition-colors rounded-md font-medium text-slate-400">
-              <Settings className="w-4 h-4" />
-              Settings
-            </a>
-          </div>
-
-          <div className="p-4 border-t border-slate-800">
-            <div className="flex items-center gap-3 px-2 py-2">
-              <Avatar className="w-8 h-8 rounded-md bg-slate-700">
-                <AvatarFallback className="bg-slate-700 text-white rounded-md text-xs">JD</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">Jane Doe</p>
-                <p className="text-xs text-slate-500 truncate">Agency Owner</p>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-          
-          {/* Top Bar */}
-          <header className="h-16 flex items-center justify-between px-8 bg-white/50 backdrop-blur-md border-b border-slate-200 z-10 shrink-0">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Dashboard</h2>
-              <p className="text-xs text-slate-500 font-medium">{currentDate}</p>
+              <div className="text-sm font-medium text-slate-200">Add New Site</div>
+              <div className="text-[11px] text-slate-400">Monitor a new WordPress site</div>
             </div>
-            <div className="flex items-center gap-4">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm font-medium h-9 px-4 rounded-lg">
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Sync All
-              </Button>
+          </button>
+          
+          <button className="w-full flex items-center gap-3 group text-left">
+            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+              AY
             </div>
-          </header>
-
-          <ScrollArea className="flex-1 p-8">
-            <div className="max-w-7xl mx-auto space-y-6 pb-12">
-              
-              {/* Stat Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden border-l-4 border-l-blue-600">
-                  <CardContent className="p-5">
-                    <p className="text-sm font-medium text-slate-500 mb-1">Total Sites</p>
-                    <div className="flex items-baseline gap-2">
-                      <h3 className="text-4xl font-bold tracking-tight text-slate-900">12</h3>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden border-l-4 border-l-emerald-500">
-                  <CardContent className="p-5">
-                    <p className="text-sm font-medium text-slate-500 mb-1">Healthy</p>
-                    <div className="flex items-baseline gap-2">
-                      <h3 className="text-4xl font-bold tracking-tight text-slate-900">8</h3>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden border-l-4 border-l-amber-500 bg-amber-50/30">
-                  <CardContent className="p-5">
-                    <p className="text-sm font-medium text-slate-500 mb-1">Needs Attention</p>
-                    <div className="flex items-baseline gap-2">
-                      <h3 className="text-4xl font-bold tracking-tight text-amber-600">3</h3>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden border-l-4 border-l-red-500 bg-red-50/30">
-                  <CardContent className="p-5">
-                    <p className="text-sm font-medium text-slate-500 mb-1">Critical Risk</p>
-                    <div className="flex items-baseline gap-2">
-                      <h3 className="text-4xl font-bold tracking-tight text-red-600">1</h3>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden border-l-4 border-l-slate-400">
-                  <CardContent className="p-5">
-                    <p className="text-sm font-medium text-slate-500 mb-1">Unmonitored Pages</p>
-                    <div className="flex items-baseline gap-2">
-                      <h3 className="text-4xl font-bold tracking-tight text-slate-700">4</h3>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Two Column Section 1 */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Health Overview */}
-                <Card className="lg:col-span-2 rounded-xl shadow-sm border-slate-200">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Network Health Overview</CardTitle>
-                    <CardDescription>Aggregate health metrics across 12 sites</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col md:flex-row items-center gap-8 pt-4">
-                    {/* Ring */}
-                    <div className="relative w-40 h-40 flex items-center justify-center shrink-0">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="45" fill="none" stroke="#f1f5f9" strokeWidth="10" />
-                        <circle 
-                          cx="50" cy="50" r="45" 
-                          fill="none" 
-                          stroke="#2563eb" 
-                          strokeWidth="10" 
-                          strokeDasharray={`${74 * 2.827} 282.7`} 
-                          strokeLinecap="round" 
-                        />
-                      </svg>
-                      <div className="absolute flex flex-col items-center justify-center">
-                        <span className="text-4xl font-bold text-slate-900 tracking-tighter">74</span>
-                        <span className="text-xs text-slate-500 font-medium">/ 100</span>
-                      </div>
-                    </div>
-
-                    {/* Bars */}
-                    <div className="flex-1 w-full space-y-4">
-                      <div>
-                        <div className="flex justify-between mb-1.5 text-sm">
-                          <span className="font-medium text-slate-700">Security Posture</span>
-                          <span className="font-semibold text-emerald-600">88%</span>
-                        </div>
-                        <Progress value={88} className="h-2 [&>div]:bg-emerald-500" />
-                      </div>
-                      <div>
-                        <div className="flex justify-between mb-1.5 text-sm">
-                          <span className="font-medium text-slate-700">Sync Freshness</span>
-                          <span className="font-semibold text-emerald-600">90%</span>
-                        </div>
-                        <Progress value={90} className="h-2 [&>div]:bg-emerald-500" />
-                      </div>
-                      <div>
-                        <div className="flex justify-between mb-1.5 text-sm">
-                          <span className="font-medium text-slate-700">Page Response</span>
-                          <span className="font-semibold text-blue-600">81%</span>
-                        </div>
-                        <Progress value={81} className="h-2 [&>div]:bg-blue-500" />
-                      </div>
-                      <div>
-                        <div className="flex justify-between mb-1.5 text-sm">
-                          <span className="font-medium text-slate-700">Monitoring Coverage</span>
-                          <span className="font-semibold text-amber-500">72%</span>
-                        </div>
-                        <Progress value={72} className="h-2 [&>div]:bg-amber-500" />
-                      </div>
-                      <div>
-                        <div className="flex justify-between mb-1.5 text-sm">
-                          <span className="font-medium text-slate-700">Plugin Update Pressure</span>
-                          <span className="font-semibold text-amber-500">61%</span>
-                        </div>
-                        <Progress value={61} className="h-2 [&>div]:bg-amber-500" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Recommended Actions */}
-                <Card className="rounded-xl shadow-sm border-slate-200">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-lg">Recommended Actions</CardTitle>
-                    <CardDescription>Prioritized tasks for your attention</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Action 1 */}
-                    <div className="p-4 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-1 w-2 h-2 rounded-full bg-red-500 shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                        <div className="flex-1">
-                          <h4 className="text-sm font-semibold text-slate-900 mb-1">Critical Update Required</h4>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="secondary" className="bg-white border-slate-200 text-xs font-medium text-slate-600">acme-corp.com</Badge>
-                          </div>
-                          <p className="text-xs text-slate-500 mb-3">WooCommerce 8.4 security patch</p>
-                          <Button size="sm" variant="outline" className="h-7 text-xs font-medium">Review Update</Button>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Action 2 */}
-                    <div className="p-4 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-1 w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                        <div className="flex-1">
-                          <h4 className="text-sm font-semibold text-slate-900 mb-1">5 pages unmonitored</h4>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="secondary" className="bg-white border-slate-200 text-xs font-medium text-slate-600">studio-xyz.io</Badge>
-                          </div>
-                          <p className="text-xs text-slate-500 mb-3">Important pages not tracked</p>
-                          <Button size="sm" variant="outline" className="h-7 text-xs font-medium">Configure Pages</Button>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Action 3 */}
-                    <div className="p-4 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-1 w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                        <div className="flex-1">
-                          <h4 className="text-sm font-semibold text-slate-900 mb-1">Plugin updates available</h4>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="secondary" className="bg-white border-slate-200 text-xs font-medium text-slate-600">greenleaf.co</Badge>
-                          </div>
-                          <p className="text-xs text-slate-500 mb-3">3 plugins need updating</p>
-                          <Button size="sm" variant="outline" className="h-7 text-xs font-medium">View Plugins</Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Two Column Section 2 */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* Recently Synced Sites Table */}
-                <Card className="rounded-xl shadow-sm border-slate-200">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">Recently Synced Sites</CardTitle>
-                        <CardDescription>Latest status from connected environments</CardDescription>
-                      </div>
-                      <Button variant="ghost" size="sm" className="text-blue-600 text-xs">View all</Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader className="bg-slate-50/50">
-                        <TableRow>
-                          <TableHead className="pl-6">Site</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Updates</TableHead>
-                          <TableHead className="text-right pr-6">Last Sync</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TableRow className="hover:bg-slate-50/80 transition-colors cursor-pointer group">
-                          <TableCell className="pl-6 font-medium text-slate-900">
-                            <div className="flex items-center gap-2">
-                              <Avatar className="w-6 h-6 rounded bg-blue-100 text-blue-700">
-                                <AvatarFallback className="text-[10px] rounded font-bold">AC</AvatarFallback>
-                              </Avatar>
-                              acme-corp.com
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-medium">Healthy</Badge>
-                          </TableCell>
-                          <TableCell className="text-slate-500">0</TableCell>
-                          <TableCell className="text-right pr-6 text-slate-500 text-sm">2 min ago</TableCell>
-                        </TableRow>
-                        <TableRow className="hover:bg-slate-50/80 transition-colors cursor-pointer group bg-amber-50/10">
-                          <TableCell className="pl-6 font-medium text-slate-900">
-                            <div className="flex items-center gap-2">
-                              <Avatar className="w-6 h-6 rounded bg-amber-100 text-amber-700">
-                                <AvatarFallback className="text-[10px] rounded font-bold">SX</AvatarFallback>
-                              </Avatar>
-                              studio-xyz.io
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-medium">Warning</Badge>
-                          </TableCell>
-                          <TableCell className="text-slate-500">5</TableCell>
-                          <TableCell className="text-right pr-6 text-slate-500 text-sm">18 min ago</TableCell>
-                        </TableRow>
-                        <TableRow className="hover:bg-slate-50/80 transition-colors cursor-pointer group">
-                          <TableCell className="pl-6 font-medium text-slate-900">
-                            <div className="flex items-center gap-2">
-                              <Avatar className="w-6 h-6 rounded bg-emerald-100 text-emerald-700">
-                                <AvatarFallback className="text-[10px] rounded font-bold">GL</AvatarFallback>
-                              </Avatar>
-                              greenleaf.co
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-medium">Healthy</Badge>
-                          </TableCell>
-                          <TableCell className="text-slate-500">0</TableCell>
-                          <TableCell className="text-right pr-6 text-slate-500 text-sm">1 hr ago</TableCell>
-                        </TableRow>
-                        <TableRow className="hover:bg-slate-50/80 transition-colors cursor-pointer group bg-red-50/10">
-                          <TableCell className="pl-6 font-medium text-slate-900">
-                            <div className="flex items-center gap-2">
-                              <Avatar className="w-6 h-6 rounded bg-red-100 text-red-700">
-                                <AvatarFallback className="text-[10px] rounded font-bold">DP</AvatarFallback>
-                              </Avatar>
-                              dev-portfolio.net
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-medium">Critical</Badge>
-                          </TableCell>
-                          <TableCell className="text-slate-500">12</TableCell>
-                          <TableCell className="text-right pr-6 text-slate-500 text-sm">3 hr ago</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-
-                <div className="space-y-6">
-                  {/* Update Pressure Panel */}
-                  <Card className="rounded-xl shadow-sm border-slate-200">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="text-lg">Update Pressure</CardTitle>
-                      <CardDescription>Pending updates across your network</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                          <p className="text-sm font-medium text-slate-500 mb-1">Plugin Updates</p>
-                          <p className="text-2xl font-bold text-slate-900">18</p>
-                        </div>
-                        <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                          <p className="text-sm font-medium text-slate-500 mb-1">Theme Updates</p>
-                          <p className="text-2xl font-bold text-slate-900">3</p>
-                        </div>
-                        <div className="p-4 bg-red-50/50 rounded-lg border border-red-100">
-                          <p className="text-sm font-medium text-red-600 mb-1">WordPress Core</p>
-                          <p className="text-2xl font-bold text-red-700">1</p>
-                        </div>
-                        <div className="p-4 bg-amber-50/50 rounded-lg border border-amber-100">
-                          <p className="text-sm font-medium text-amber-600 mb-1">Sites Needing Updates</p>
-                          <p className="text-2xl font-bold text-amber-700">4</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Monitoring Coverage Panel */}
-                  <Card className="rounded-xl shadow-sm border-slate-200">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="text-lg">Monitoring Coverage</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-6 mb-6">
-                        <div className="text-3xl font-bold text-blue-600">72%</div>
-                        <div className="flex-1">
-                          <Progress value={72} className="h-2 [&>div]:bg-blue-600" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Connected sites</span>
-                          <span className="font-semibold text-slate-900">12</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Pages discovered</span>
-                          <span className="font-semibold text-slate-900">147</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Pages monitored</span>
-                          <span className="font-semibold text-slate-900">106</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Important unmonitored</span>
-                          <span className="font-semibold text-amber-600">4</span>
-                        </div>
-                        <div className="flex justify-between col-span-2 pt-2 border-t border-slate-100 mt-2">
-                          <span className="text-slate-500">Synced last 12h</span>
-                          <span className="font-semibold text-emerald-600">9</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-              </div>
-
-              {/* Two Column Section 3 */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Recent Page Checks */}
-                <Card className="lg:col-span-2 rounded-xl shadow-sm border-slate-200">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">Recent Page Checks</CardTitle>
-                        <CardDescription>Real-time uptime and performance</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader className="bg-slate-50/50">
-                        <TableRow>
-                          <TableHead className="pl-6">Page</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Response</TableHead>
-                          <TableHead className="text-right pr-6">Time</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TableRow className="hover:bg-slate-50/80">
-                          <TableCell className="pl-6">
-                            <span className="font-medium text-slate-900">acme-corp.com</span>
-                            <span className="text-slate-500"> / Homepage</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Healthy</Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-slate-600">243ms</TableCell>
-                          <TableCell className="text-right pr-6 text-slate-500 text-sm">just now</TableCell>
-                        </TableRow>
-                        <TableRow className="hover:bg-slate-50/80">
-                          <TableCell className="pl-6">
-                            <span className="font-medium text-slate-900">acme-corp.com</span>
-                            <span className="text-slate-500"> / Shop</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Healthy</Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-slate-600">312ms</TableCell>
-                          <TableCell className="text-right pr-6 text-slate-500 text-sm">2 min</TableCell>
-                        </TableRow>
-                        <TableRow className="hover:bg-slate-50/80 bg-amber-50/10">
-                          <TableCell className="pl-6">
-                            <span className="font-medium text-slate-900">studio-xyz.io</span>
-                            <span className="text-slate-500"> / Portfolio</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Slow</Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-amber-600 font-bold">1840ms</TableCell>
-                          <TableCell className="text-right pr-6 text-slate-500 text-sm">8 min</TableCell>
-                        </TableRow>
-                        <TableRow className="hover:bg-slate-50/80">
-                          <TableCell className="pl-6">
-                            <span className="font-medium text-slate-900">studio-xyz.io</span>
-                            <span className="text-slate-500"> / Contact</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Healthy</Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-slate-600">198ms</TableCell>
-                          <TableCell className="text-right pr-6 text-slate-500 text-sm">12 min</TableCell>
-                        </TableRow>
-                        <TableRow className="hover:bg-slate-50/80">
-                          <TableCell className="pl-6">
-                            <span className="font-medium text-slate-900">greenleaf.co</span>
-                            <span className="text-slate-500"> / Home</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Healthy</Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-slate-600">267ms</TableCell>
-                          <TableCell className="text-right pr-6 text-slate-500 text-sm">22 min</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-
-                {/* Recent Activity */}
-                <Card className="rounded-xl shadow-sm border-slate-200">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Recent Activity</CardTitle>
-                    <CardDescription>Events across your network</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-                      
-                      {/* Event 1 */}
-                      <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-100 text-blue-600 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
-                          <RefreshCw className="w-4 h-4" />
-                        </div>
-                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] pl-4 md:pl-0 md:group-odd:pr-6 md:group-even:pl-6">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-slate-900">Sync completed</span>
-                            <span className="text-xs text-slate-500">acme-corp.com • 2 min ago</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Event 2 */}
-                      <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-red-100 text-red-600 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
-                          <ShieldAlert className="w-4 h-4" />
-                        </div>
-                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] pl-4 md:pl-0 md:group-odd:pr-6 md:group-even:pl-6">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-red-600">Critical alert raised</span>
-                            <span className="text-xs text-slate-500">dev-portfolio.net • 3 hr ago</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Event 3 */}
-                      <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-amber-100 text-amber-600 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
-                          <AlertCircle className="w-4 h-4" />
-                        </div>
-                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] pl-4 md:pl-0 md:group-odd:pr-6 md:group-even:pl-6">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-slate-900">Plugin update detected</span>
-                            <span className="text-xs text-slate-500">studio-xyz.io • 18 min ago</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Event 4 */}
-                      <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-amber-100 text-amber-600 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
-                          <Clock className="w-4 h-4" />
-                        </div>
-                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] pl-4 md:pl-0 md:group-odd:pr-6 md:group-even:pl-6">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-slate-900">Page check failed</span>
-                            <span className="text-xs text-slate-500">studio-xyz.io/portfolio • 8 min ago</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Event 5 */}
-                      <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-emerald-100 text-emerald-600 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
-                          <Globe className="w-4 h-4" />
-                        </div>
-                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] pl-4 md:pl-0 md:group-odd:pr-6 md:group-even:pl-6">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-slate-900">New site connected</span>
-                            <span className="text-xs text-slate-500">media-lab.co • 1 day ago</span>
-                          </div>
-                        </div>
-                      </div>
-
-                    </div>
-                  </CardContent>
-                </Card>
-
-              </div>
-
+            <div className="flex-1 overflow-hidden">
+              <div className="text-sm font-bold text-white truncate">Asfand Yar</div>
+              <div className="text-[11px] text-slate-400 truncate">admin@sitepulse.local</div>
             </div>
-          </ScrollArea>
+            <ChevronDown size={14} className="text-slate-500" />
+          </button>
         </div>
       </div>
-    </>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Header */}
+        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Internal MVP</span>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 leading-tight">Dashboard</h1>
+            <p className="text-sm text-slate-500">Monitor connected WordPress sites, update pressure, and sync freshness.</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span className="text-xs font-medium text-slate-600">API Online</span>
+              <div className="w-px h-3 bg-slate-300 mx-1"></div>
+              <span className="text-xs text-slate-500">https://sitepulse-api-84m8.ornender.com</span>
+              <button className="text-xs font-medium text-blue-600 ml-2">Test</button>
+            </div>
+            <div className="h-8 w-px bg-slate-200"></div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
+                AY
+              </div>
+              <span className="text-sm font-medium text-slate-700">Asfand Yar</span>
+              <ChevronDown size={14} className="text-slate-400" />
+            </div>
+            <button className="text-xs font-medium text-slate-600 px-3 py-1.5 border border-slate-300 rounded-md hover:bg-slate-50">
+              Logout
+            </button>
+          </div>
+        </header>
+
+        {/* Refresh bar */}
+        <div className="bg-slate-50/80 px-6 py-2 flex justify-end items-center gap-3 border-b border-slate-100 shrink-0">
+          <span className="text-xs text-slate-500">Last refreshed 3 seconds ago</span>
+          <button className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-md text-xs font-medium transition-colors">
+            <RefreshCw size={12} />
+            Refresh
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-auto p-6 space-y-6">
+          
+          {/* Metric Cards Row */}
+          <div className="grid grid-cols-5 gap-4">
+            {/* Total Sites */}
+            <div className="bg-white rounded-[12px] border border-slate-200 p-5 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3">
+                <Monitor size={20} />
+              </div>
+              <div className="text-[36px] font-[800] text-slate-900 leading-none mb-1">2</div>
+              <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2">Total Sites</div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                1 unknown
+              </div>
+            </div>
+
+            {/* Healthy */}
+            <div className="bg-white rounded-[12px] border border-slate-200 p-5 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-green-100 text-green-600 flex items-center justify-center mb-3">
+                <ShieldCheck size={20} />
+              </div>
+              <div className="text-[36px] font-[800] text-slate-900 leading-none mb-1">0</div>
+              <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2">Healthy</div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                No active flags
+              </div>
+            </div>
+
+            {/* Needs Attention */}
+            <div className="bg-white rounded-[12px] border border-slate-200 p-5 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-yellow-100 text-yellow-600 flex items-center justify-center mb-3">
+                <AlertTriangle size={20} />
+              </div>
+              <div className="text-[36px] font-[800] text-slate-900 leading-none mb-1">0</div>
+              <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2">Needs Attention</div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                No issues
+              </div>
+            </div>
+
+            {/* Critical Risk */}
+            <div className="bg-white rounded-[12px] border border-slate-200 p-5 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mb-3">
+                <ShieldAlert size={20} />
+              </div>
+              <div className="text-[36px] font-[800] text-slate-900 leading-none mb-1">1</div>
+              <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2">Critical Risk</div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                High-priority risk
+              </div>
+            </div>
+
+            {/* Unmonitored Pages */}
+            <div className="bg-white rounded-[12px] border border-slate-200 p-5 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center mb-3">
+                <FileWarning size={20} />
+              </div>
+              <div className="text-[36px] font-[800] text-slate-900 leading-none mb-1">3</div>
+              <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-2">Unmonitored Pages</div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                Important pages
+              </div>
+            </div>
+          </div>
+
+          {/* Primary Row */}
+          <div className="flex gap-6">
+            {/* Website Health Overview */}
+            <div className="bg-white border border-slate-200 rounded-[18px] w-[57%] flex flex-col shadow-sm">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900">Website Health Overview</h2>
+                <Info size={14} className="text-slate-400" />
+              </div>
+              <div className="p-6 flex gap-8 flex-1 items-center">
+                <div className="w-[180px] flex flex-col items-center justify-center shrink-0">
+                  <div className="relative w-[130px] h-[130px] flex items-center justify-center mb-4">
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="40" stroke="#f1f5f9" strokeWidth="12" fill="none" />
+                      <circle cx="50" cy="50" r="40" stroke="#22c55e" strokeWidth="12" fill="none" strokeDasharray="251.2" strokeDashoffset="55.26" strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-4xl font-bold text-slate-900 leading-none">78</span>
+                      <span className="text-sm font-medium text-slate-500">/100</span>
+                    </div>
+                  </div>
+                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Overall Health Score</div>
+                  <div className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">Good</div>
+                </div>
+                
+                <div className="flex-1">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-[11px] font-medium text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                        <th className="pb-3 font-medium">Area</th>
+                        <th className="pb-3 font-medium">Status</th>
+                        <th className="pb-3 font-medium text-right">Score</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-sm">
+                      <tr className="border-b border-slate-50">
+                        <td className="py-3 font-medium text-slate-700 flex items-center gap-2">
+                          <ShieldAlert size={14} className="text-amber-500" /> Security posture
+                        </td>
+                        <td className="py-3"><span className="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded-full font-medium">Needs attention</span></td>
+                        <td className="py-3 text-right font-medium text-slate-600">60/100</td>
+                      </tr>
+                      <tr className="border-b border-slate-50">
+                        <td className="py-3 font-medium text-slate-700 flex items-center gap-2">
+                          <Plug size={14} className="text-amber-500" /> Plugin update pressure
+                        </td>
+                        <td className="py-3"><span className="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded-full font-medium">Some updates</span></td>
+                        <td className="py-3 text-right font-medium text-slate-600">70/100</td>
+                      </tr>
+                      <tr className="border-b border-slate-50">
+                        <td className="py-3 font-medium text-slate-700 flex items-center gap-2">
+                          <Activity size={14} className="text-green-500" /> Monitoring coverage
+                        </td>
+                        <td className="py-3"><span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">Good</span></td>
+                        <td className="py-3 text-right font-medium text-slate-600">80/100</td>
+                      </tr>
+                      <tr className="border-b border-slate-50">
+                        <td className="py-3 font-medium text-slate-700 flex items-center gap-2">
+                          <RefreshCw size={14} className="text-green-500" /> Sync freshness
+                        </td>
+                        <td className="py-3"><span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">Good</span></td>
+                        <td className="py-3 text-right font-medium text-slate-600">90/100</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 font-medium text-slate-700 flex items-center gap-2">
+                          <Clock size={14} className="text-green-500" /> Page response performance
+                        </td>
+                        <td className="py-3"><span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">Good</span></td>
+                        <td className="py-3 text-right font-medium text-slate-600">85/100</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100 mt-auto">
+                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center">
+                  View full health report <ArrowRight size={14} className="ml-1" />
+                </a>
+              </div>
+            </div>
+
+            {/* Recommended Actions */}
+            <div className="bg-white border border-slate-200 rounded-[18px] w-[43%] flex flex-col shadow-sm">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-900">Recommended Actions</h2>
+                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center">
+                  View all actions <ArrowRight size={14} className="ml-1" />
+                </a>
+              </div>
+              <div className="flex flex-col">
+                {/* Action 1 */}
+                <div className="p-5 flex gap-4 border-b border-slate-100">
+                  <div className="shrink-0 mt-0.5">
+                    <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full">Critical</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-slate-900 mb-1">Fix 2 critical WordPress security risks</div>
+                    <div className="text-sm text-slate-500 mb-3">File editor enabled and debug mode active</div>
+                    <div className="flex items-center gap-3">
+                      <span className="bg-slate-100 text-slate-700 text-xs font-medium px-2 py-1 rounded-md">Thincscorp Website</span>
+                      <button className="bg-red-600 text-white text-xs font-medium px-3 py-1.5 rounded-md hover:bg-red-700">Fix Now</button>
+                      <button className="text-slate-400 hover:text-slate-600 ml-auto"><MoreVertical size={16} /></button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Action 2 */}
+                <div className="p-5 flex gap-4 border-b border-slate-100">
+                  <div className="shrink-0 mt-0.5">
+                    <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-1 rounded-full">High</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-slate-900 mb-1">Enable monitoring for important pages</div>
+                    <div className="text-sm text-slate-500 mb-3">3 important pages are not being monitored</div>
+                    <div className="flex items-center gap-3">
+                      <span className="bg-slate-100 text-slate-700 text-xs font-medium px-2 py-1 rounded-md">Thincscorp Website</span>
+                      <button className="bg-blue-600 text-white text-xs font-medium px-3 py-1.5 rounded-md hover:bg-blue-700">Monitor</button>
+                      <button className="text-slate-400 hover:text-slate-600 ml-auto"><MoreVertical size={16} /></button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action 3 */}
+                <div className="p-5 flex gap-4 border-b border-slate-100">
+                  <div className="shrink-0 mt-0.5">
+                    <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-2 py-1 rounded-full">Medium</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-slate-900 mb-1">Update 1 outdated plugin</div>
+                    <div className="text-sm text-slate-500 mb-3">1 plugin update is available</div>
+                    <div className="flex items-center gap-3">
+                      <span className="bg-slate-100 text-slate-700 text-xs font-medium px-2 py-1 rounded-md">Onset Demo Website</span>
+                      <button className="bg-white border border-slate-300 text-slate-700 text-xs font-medium px-3 py-1.5 rounded-md hover:bg-slate-50">Review</button>
+                      <button className="text-slate-400 hover:text-slate-600 ml-auto"><MoreVertical size={16} /></button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action 4 */}
+                <div className="p-5 flex gap-4">
+                  <div className="shrink-0 mt-0.5">
+                    <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">Low</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-slate-900 mb-1">Check sync freshness</div>
+                    <div className="text-sm text-slate-500 mb-3">1 site not synced in last 24 hours</div>
+                    <div className="flex items-center gap-3">
+                      <span className="bg-slate-100 text-slate-700 text-xs font-medium px-2 py-1 rounded-md">Onset Demo Website</span>
+                      <button className="bg-white border border-slate-300 text-slate-700 text-xs font-medium px-3 py-1.5 rounded-md hover:bg-slate-50">Open</button>
+                      <button className="text-slate-400 hover:text-slate-600 ml-auto"><MoreVertical size={16} /></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary Row */}
+          <div className="flex gap-6">
+            {/* Recently Synced Sites */}
+            <div className="bg-white border border-slate-200 rounded-[18px] w-[45%] flex flex-col shadow-sm">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-900">Recently Synced Sites</h2>
+                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center">
+                  View all sites <ArrowRight size={14} className="ml-1" />
+                </a>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-[11px] font-medium text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                      <th className="px-6 py-4 font-medium">Site</th>
+                      <th className="px-4 py-4 font-medium">Status</th>
+                      <th className="px-4 py-4 font-medium">Last Seen</th>
+                      <th className="px-4 py-4 font-medium">Plugin Updates</th>
+                      <th className="px-6 py-4 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-slate-100">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold shrink-0">TC</div>
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm">Thincscorp Website</div>
+                            <div className="text-xs text-slate-500">thincscorp.com</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full">Critical</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm font-medium text-slate-900">5 hours ago</div>
+                        <div className="text-xs text-slate-500">5 Jun 2026, 16:56</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="bg-slate-100 text-slate-600 text-xs font-medium px-2.5 py-1 rounded-full">0 Updates</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button className="text-slate-400 hover:text-slate-600"><MoreVertical size={16} /></button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold shrink-0">EC</div>
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm">Onset Demo Website</div>
+                            <div className="text-xs text-slate-500">example.com</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded-full">Unknown</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm font-medium text-slate-900">16 hours ago</div>
+                        <div className="text-xs text-slate-500">5 Jun 2026, 5:48</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2.5 py-1 rounded-full">1 Update</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button className="text-slate-400 hover:text-slate-600"><MoreVertical size={16} /></button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Monitoring Coverage */}
+            <div className="bg-white border border-slate-200 rounded-[18px] w-[27%] flex flex-col shadow-sm">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-900">Monitoring Coverage</h2>
+                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center">
+                  View full report <ArrowRight size={14} className="ml-1" />
+                </a>
+              </div>
+              <div className="p-6 flex flex-col items-center">
+                <div className="relative w-[140px] h-[140px] flex items-center justify-center mb-2">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" stroke="#f1f5f9" strokeWidth="12" fill="none" />
+                    <circle cx="50" cy="50" r="40" stroke="#3b82f6" strokeWidth="12" fill="none" strokeDasharray="251.2" strokeDashoffset="60.28" strokeLinecap="round" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-4xl font-bold text-slate-900 leading-none">76%</span>
+                  </div>
+                </div>
+                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-8">Coverage Score</div>
+
+                <div className="w-full space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span> Connected Sites
+                    </div>
+                    <div className="flex-1 border-b border-dotted border-slate-300 mx-3"></div>
+                    <span className="font-bold text-slate-900">2</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500"></span> Pages Discovered
+                    </div>
+                    <div className="flex-1 border-b border-dotted border-slate-300 mx-3"></div>
+                    <span className="font-bold text-slate-900">14</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="w-2 h-2 rounded-full bg-green-500"></span> Pages Monitored
+                    </div>
+                    <div className="flex-1 border-b border-dotted border-slate-300 mx-3"></div>
+                    <span className="font-bold text-slate-900">8</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span> Important Pages Unmonitored
+                    </div>
+                    <div className="flex-1 border-b border-dotted border-slate-300 mx-3"></div>
+                    <span className="font-bold text-slate-900">3</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="w-2 h-2 rounded-full bg-purple-500"></span> Sites Synced (Last 12h)
+                    </div>
+                    <div className="flex-1 border-b border-dotted border-slate-300 mx-3"></div>
+                    <span className="font-bold text-slate-900">1</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Update Pressure */}
+            <div className="bg-white border border-slate-200 rounded-[18px] w-[28%] flex flex-col shadow-sm">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-900">Update Pressure</h2>
+                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center">
+                  View updates <ArrowRight size={14} className="ml-1" />
+                </a>
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                      <Plug size={20} />
+                    </div>
+                    <span className="font-semibold text-slate-800">Plugin Updates</span>
+                  </div>
+                  <span className="bg-amber-100 text-amber-700 text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center">1</span>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center">
+                      <Palette size={20} />
+                    </div>
+                    <span className="font-semibold text-slate-800">Theme Updates</span>
+                  </div>
+                  <span className="bg-slate-100 text-slate-600 text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center">0</span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center">
+                      <Server size={20} />
+                    </div>
+                    <span className="font-semibold text-slate-800">WordPress Core</span>
+                  </div>
+                  <span className="bg-slate-100 text-slate-600 text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center">0</span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                      <Globe size={20} />
+                    </div>
+                    <span className="font-semibold text-slate-800">Sites Needing Updates</span>
+                  </div>
+                  <span className="bg-amber-100 text-amber-700 text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center">1</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Row */}
+          <div className="flex gap-6 pb-6">
+            {/* Recent Page Checks */}
+            <div className="bg-white border border-slate-200 rounded-[18px] w-[60%] flex flex-col shadow-sm">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-900">Recent Page Checks</h2>
+                <div className="flex gap-4">
+                  <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center">
+                    Manage monitored pages <ArrowRight size={14} className="ml-1" />
+                  </a>
+                  <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center">
+                    View all page checks <ArrowRight size={14} className="ml-1" />
+                  </a>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-[11px] font-medium text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                      <th className="px-6 py-4 font-medium">Site</th>
+                      <th className="px-4 py-4 font-medium">Page</th>
+                      <th className="px-4 py-4 font-medium">Status</th>
+                      <th className="px-4 py-4 font-medium">Response</th>
+                      <th className="px-6 py-4 font-medium">Checked</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-slate-100">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold shrink-0">TC</div>
+                          <div className="font-semibold text-slate-900 text-sm">Thincscorp Website</div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm font-medium text-slate-900">Homepage</div>
+                        <div className="text-xs text-slate-500">https://thincscorp.com/</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                          <span className="text-sm font-medium text-slate-700">OK</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-sm font-medium text-slate-700">3130 ms</span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        2 hours ago
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold shrink-0">TC</div>
+                          <div className="font-semibold text-slate-900 text-sm">Thincscorp Website</div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm font-medium text-slate-900">Homepage</div>
+                        <div className="text-xs text-slate-500">https://thincscorp.com/</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                          <span className="text-sm font-medium text-slate-700">OK</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-sm font-medium text-slate-700">935 ms</span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        14 hours ago
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Recent Activity */}
+            <div className="bg-white border border-slate-200 rounded-[18px] w-[40%] flex flex-col shadow-sm">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-900">Recent Activity</h2>
+                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center">
+                  View all activity <ArrowRight size={14} className="ml-1" />
+                </a>
+              </div>
+              <div className="p-6 relative">
+                <div className="absolute left-[39px] top-6 bottom-6 w-px bg-slate-200"></div>
+                <div className="space-y-6 relative">
+                  
+                  {/* Activity 1 */}
+                  <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0 relative z-10 border-4 border-white">
+                      <RefreshCw size={14} />
+                    </div>
+                    <div className="flex-1 pt-1">
+                      <div className="flex justify-between items-start mb-1">
+                        <div className="font-medium text-slate-900 text-sm">Thincscorp Website synced successfully</div>
+                        <div className="text-xs text-slate-500 shrink-0 ml-4">5 hours ago</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Activity 2 */}
+                  <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 relative z-10 border-4 border-white">
+                      <AlertTriangle size={14} />
+                    </div>
+                    <div className="flex-1 pt-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="font-medium text-slate-900 text-sm">Debug mode is enabled</div>
+                        <div className="text-xs text-slate-500 shrink-0 ml-4">5 hours ago</div>
+                      </div>
+                      <span className="bg-slate-100 text-slate-700 text-[11px] font-medium px-2 py-1 rounded-md">Thincscorp Website</span>
+                    </div>
+                  </div>
+
+                  {/* Activity 3 */}
+                  <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 relative z-10 border-4 border-white">
+                      <Monitor size={14} />
+                    </div>
+                    <div className="flex-1 pt-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="font-medium text-slate-900 text-sm">Homepage checked</div>
+                        <div className="text-xs text-slate-500 shrink-0 ml-4">2 hours ago</div>
+                      </div>
+                      <span className="bg-slate-100 text-slate-700 text-[11px] font-medium px-2 py-1 rounded-md">Thincscorp Website</span>
+                    </div>
+                  </div>
+
+                  {/* Activity 4 */}
+                  <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0 relative z-10 border-4 border-white">
+                      <FileWarning size={14} />
+                    </div>
+                    <div className="flex-1 pt-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="font-medium text-slate-900 text-sm">New important page discovered</div>
+                        <div className="text-xs text-slate-500 shrink-0 ml-4">1 day ago</div>
+                      </div>
+                      <span className="bg-slate-100 text-slate-700 text-[11px] font-medium px-2 py-1 rounded-md">/pricing</span>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
   );
 }
