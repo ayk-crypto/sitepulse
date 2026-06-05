@@ -2118,40 +2118,13 @@ textarea {
   z-index: 1;
 }
 
-.login-brand-logo-wrap {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-}
-
-.login-brand-logo-icon {
-  border-radius: 12px;
+.login-brand-logo {
   display: block;
-  flex: 0 0 auto;
-  height: 42px;
+  filter: invert(1) sepia(1) saturate(2) hue-rotate(195deg) brightness(1.18);
+  height: auto;
+  max-width: 220px;
   object-fit: contain;
-  width: 42px;
-}
-
-.login-brand-logo-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.login-brand-logo-name {
-  color: #ffffff;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-
-.login-brand-logo-sub {
-  color: #4a6a90;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  width: 58%;
 }
 
 .login-tagline {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import sitepulseIcon from './assets/sitepulse-icon.png'
 import sitepulseLogo from './assets/sitepulse-logo.png'
 import brandLogo from './assets/sitepulse-brand-logo.png'
+import sitepulseWordmark from './assets/sitepulse-wordmark-transparent.png'
 import './App.css'
 
 const DEFAULT_API_BASE_URL =
@@ -567,13 +568,11 @@ function LoginPage({ onLogin }) {
         <div className="login-bg-orb login-bg-orb-2" />
         <div className="login-bg-orb login-bg-orb-3" />
         <div className="login-brand-inner">
-          <div className="login-brand-logo-wrap">
-            <img src={sitepulseIcon} alt="" className="login-brand-logo-icon" />
-            <div className="login-brand-logo-text">
-              <span className="login-brand-logo-name">SitePulse</span>
-              <span className="login-brand-logo-sub">by Onset Media</span>
-            </div>
-          </div>
+          <img
+            src={sitepulseWordmark}
+            alt="SitePulse by Onset Media"
+            className="login-brand-logo"
+          />
           <div className="login-tagline">
             <h1>Your command center for <span>WordPress health.</span></h1>
             <p>Monitor updates, detect issues, and keep every client site running smoothly — all from one dashboard.</p>
