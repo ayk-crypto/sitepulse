@@ -43,6 +43,48 @@ curl http://localhost:4000/api/admin/sites \
   -H "x-sitepulse-admin-token: change-me"
 ```
 
+## Page monitoring API
+
+Add a monitored page:
+
+```bash
+curl -X POST http://localhost:4000/api/admin/sites/SITE_ID/pages \
+  -H "Content-Type: application/json" \
+  -H "x-sitepulse-admin-token: change-me" \
+  -d '{
+    "label": "Homepage",
+    "url": "https://example.com/"
+  }'
+```
+
+List monitored pages for a site:
+
+```bash
+curl http://localhost:4000/api/admin/sites/SITE_ID/pages \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
+Check one monitored page:
+
+```bash
+curl -X POST http://localhost:4000/api/admin/pages/PAGE_ID/check \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
+Check all active monitored pages for a site:
+
+```bash
+curl -X POST http://localhost:4000/api/admin/sites/SITE_ID/check-pages \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
+List recent page checks:
+
+```bash
+curl http://localhost:4000/api/admin/page-checks/recent \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
 ## Agent sync testing
 
 Configure `DATABASE_URL` in `.env`, run migrations and seed data, then start the API.

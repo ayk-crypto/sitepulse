@@ -4,8 +4,24 @@ const prisma = require("../lib/prisma");
 const { sha256 } = require("../lib/hash");
 
 const DEMO_API_KEY = "sitepulse_demo_key_12345";
+const DEFAULT_TENANT_SLUG = process.env.DEFAULT_TENANT_SLUG || "onset-media";
 
-async function upsertDemoClient() {
+async function getDefaultTenant() {
+  return prisma.tenant.upsert({
+    where: {
+      slug: DEFAULT_TENANT_SLUG,
+    },
+    update: {
+      name: "Onset Media",
+    },
+    create: {
+      name: "Onset Media",
+      slug: DEFAULT_TENANT_SLUG,
+    },
+  });
+}
+
+async function upsertDemoClient(tenantId) {
   const demoClientData = {
     name: "Onset Media",
     contactPerson: "Asfand Yar",
@@ -24,34 +40,44 @@ async function upsertDemoClient() {
       where: {
         id: existingClient.id,
       },
-      data: demoClientData,
+      data: {
+        ...demoClientData,
+        tenantId,
+      },
     });
   }
 
   return prisma.client.create({
-    data: demoClientData,
+    data: {
+      ...demoClientData,
+      tenantId,
+    },
   });
 }
 
 async function main() {
+  const tenant = await getDefaultTenant();
+
   const user = await prisma.user.upsert({
     where: {
       email: "admin@sitepulse.local",
     },
     update: {
       name: "Admin User",
+      tenantId: tenant.id,
       passwordHash: "demo-password-hash",
       role: "admin",
     },
     create: {
       name: "Admin User",
+      tenantId: tenant.id,
       email: "admin@sitepulse.local",
       passwordHash: "demo-password-hash",
       role: "admin",
     },
   });
 
-  const client = await upsertDemoClient();
+  const client = await upsertDemoClient(tenant.id);
 
   const site = await prisma.site.upsert({
     where: {
@@ -59,12 +85,14 @@ async function main() {
     },
     update: {
       clientId: client.id,
+      tenantId: tenant.id,
       siteName: "Onset Demo Website",
       status: "unknown",
       apiKeyHash: sha256(DEMO_API_KEY),
     },
     create: {
       clientId: client.id,
+      tenantId: tenant.id,
       siteName: "Onset Demo Website",
       siteUrl: "https://example.com",
       status: "unknown",
@@ -73,6 +101,7 @@ async function main() {
   });
 
   console.log("SitePulse seed completed.");
+  console.log(`Default tenant: ${tenant.slug}`);
   console.log(`Demo user: ${user.email}`);
   console.log(`Demo client: ${client.name}`);
   console.log(`Demo site: ${site.siteUrl}`);
