@@ -11,6 +11,15 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.json({
+    service: "SitePulse API",
+    status: "running",
+    health: "/health",
+    agentSync: "/api/agent/sync",
+  });
+});
+
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
