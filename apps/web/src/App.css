@@ -1,5 +1,5 @@
 :root {
-  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-family: var(--font-sans);
   --bg: #f6f8fc;
   --surface: #ffffff;
@@ -2118,12 +2118,40 @@ textarea {
   z-index: 1;
 }
 
-.login-brand-logo {
+.login-brand-logo-wrap {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.login-brand-logo-icon {
+  border-radius: 12px;
   display: block;
-  height: auto;
-  max-width: 196px;
+  flex: 0 0 auto;
+  height: 42px;
   object-fit: contain;
-  width: 50%;
+  width: 42px;
+}
+
+.login-brand-logo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.login-brand-logo-name {
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.login-brand-logo-sub {
+  color: #4a6a90;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .login-tagline {
@@ -2354,15 +2382,18 @@ textarea {
   border-radius: 14px;
   box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
   display: inline-flex;
-  height: 54px;
+  height: 56px;
   justify-content: center;
-  width: 54px;
+  overflow: hidden;
+  width: 56px;
 }
 
 .login-icon-badge img {
-  height: 33px;
-  object-fit: contain;
-  width: 33px;
+  display: block;
+  height: 56px;
+  object-fit: cover;
+  object-position: center center;
+  width: 56px;
 }
 
 .login-form-top h2 {
