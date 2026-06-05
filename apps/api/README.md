@@ -1,5 +1,48 @@
 # SitePulse API
 
+## Admin onboarding API
+
+Set `ADMIN_API_TOKEN` in `.env`, then pass it with each internal admin request:
+
+```bash
+ADMIN_TOKEN="change-me"
+```
+
+Create a client:
+
+```bash
+curl -X POST http://localhost:4000/api/admin/clients \
+  -H "Content-Type: application/json" \
+  -H "x-sitepulse-admin-token: change-me" \
+  -d '{
+    "name": "Client Name",
+    "contactPerson": "Person Name",
+    "email": "client@example.com",
+    "phone": "",
+    "notes": ""
+  }'
+```
+
+Create a site and copy the returned `apiKey`; it is shown only once:
+
+```bash
+curl -X POST http://localhost:4000/api/admin/sites \
+  -H "Content-Type: application/json" \
+  -H "x-sitepulse-admin-token: change-me" \
+  -d '{
+    "clientId": "CLIENT_ID_FROM_CREATE_CLIENT",
+    "siteName": "ThincsCorp Website",
+    "siteUrl": "https://thincscorp.com"
+  }'
+```
+
+List sites:
+
+```bash
+curl http://localhost:4000/api/admin/sites \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
 ## Agent sync testing
 
 Configure `DATABASE_URL` in `.env`, run migrations and seed data, then start the API.

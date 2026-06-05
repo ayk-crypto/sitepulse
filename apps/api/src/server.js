@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const crypto = require("crypto");
 const prisma = require("./lib/prisma");
 const { sha256 } = require("./lib/hash");
 
@@ -33,6 +34,41 @@ function toBoolean(value, fallback = false) {
 
 function toOptionalString(value) {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}
+
+function requireAdminToken(req, res, next) {
+  const adminToken = process.env.ADMIN_API_TOKEN;
+  const providedToken = req.header("x-sitepulse-admin-token");
+
+  if (!adminToken || !providedToken || providedToken !== adminToken) {
+    return res.status(401).json({
+      error: "Unauthorized",
+    });
+  }
+
+  return next();
+}
+
+function requireString(value, fieldName) {
+  const normalized = toOptionalString(value);
+
+  if (!normalized) {
+    const error = new Error(`${fieldName} is required`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return normalized;
+}
+
+function asyncHandler(handler) {
+  return async (req, res, next) => {
+    try {
+      await handler(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 function normalizePlugins(plugins) {
@@ -74,6 +110,177 @@ function calculateSiteStatus({
 
   return "healthy";
 }
+
+app.get(
+  "/api/admin/clients",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const clients = await prisma.client.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        _count: {
+          select: {
+            sites: true,
+          },
+        },
+      },
+    });
+
+    res.json({
+      clients: clients.map((client) => ({
+        id: client.id,
+        name: client.name,
+        contactPerson: client.contactPerson,
+        email: client.email,
+        phone: client.phone,
+        notes: client.notes,
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt,
+        sitesCount: client._count.sites,
+      })),
+    });
+  })
+);
+
+app.post(
+  "/api/admin/clients",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+
+    const client = await prisma.client.create({
+      data: {
+        name: requireString(body.name, "name"),
+        contactPerson: toOptionalString(body.contactPerson),
+        email: toOptionalString(body.email),
+        phone: toOptionalString(body.phone),
+        notes: toOptionalString(body.notes),
+      },
+    });
+
+    res.status(201).json({
+      client,
+    });
+  })
+);
+
+app.get(
+  "/api/admin/sites",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const sites = await prisma.site.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        snapshots: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+      },
+    });
+
+    res.json({
+      sites: sites.map((site) => {
+        const latestSnapshot = site.snapshots[0] || null;
+
+        return {
+          id: site.id,
+          clientId: site.clientId,
+          clientName: site.client.name,
+          siteName: site.siteName,
+          siteUrl: site.siteUrl,
+          status: site.status,
+          lastSeenAt: site.lastSeenAt,
+          pluginUpdatesCount: latestSnapshot
+            ? latestSnapshot.pluginUpdatesCount
+            : null,
+          createdAt: site.createdAt,
+          updatedAt: site.updatedAt,
+        };
+      }),
+    });
+  })
+);
+
+app.post(
+  "/api/admin/sites",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const clientId = requireString(body.clientId, "clientId");
+    const siteName = requireString(body.siteName, "siteName");
+    const siteUrl = requireString(body.siteUrl, "siteUrl");
+    const apiKey = crypto.randomBytes(32).toString("hex");
+
+    const site = await prisma.site.create({
+      data: {
+        clientId,
+        siteName,
+        siteUrl,
+        apiKeyHash: sha256(apiKey),
+        status: "unknown",
+      },
+    });
+
+    res.status(201).json({
+      site,
+      apiKey,
+    });
+  })
+);
+
+app.get(
+  "/api/admin/sites/:id",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const site = await prisma.site.findUnique({
+      where: {
+        id: req.params.id,
+      },
+      include: {
+        client: true,
+        plugins: {
+          orderBy: {
+            name: "asc",
+          },
+        },
+        snapshots: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 10,
+        },
+      },
+    });
+
+    if (!site) {
+      return res.status(404).json({
+        error: "Site not found",
+      });
+    }
+
+    const { snapshots, ...siteDetails } = site;
+
+    return res.json({
+      site: {
+        ...siteDetails,
+        latestSnapshot: snapshots[0] || null,
+        snapshots,
+      },
+    });
+  })
+);
 
 app.post("/api/agent/sync", async (req, res) => {
   try {
@@ -190,9 +397,27 @@ app.use((err, req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
+  if (err.statusCode) {
+    return res.status(err.statusCode).json({
+      error: err.message,
+    });
+  }
+
+  if (err.code === "P2002") {
+    return res.status(409).json({
+      error: "A record with this unique value already exists",
+    });
+  }
+
+  if (err.code === "P2003") {
+    return res.status(400).json({
+      error: "Invalid related record",
+    });
+  }
+
   console.error("Unhandled API error.", err);
 
-  res.status(500).json({
+  return res.status(500).json({
     error: "Internal server error",
   });
 });
