@@ -1394,7 +1394,8 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
         title="Alerts"
         description="Review WordPress health, page monitoring, and operational alerts across client sites."
         action={
-          <button className="secondary-button" type="button" onClick={() => loadAlerts(true)}>
+          <button className="secondary-button small btn-with-icon" type="button" onClick={() => loadAlerts(true)}>
+            <DashboardIcon type="sync" />
             Refresh
           </button>
         }
