@@ -319,6 +319,28 @@ function PageCheckBadge({ check }) {
   return <span className="status status-healthy">OK</span>
 }
 
+function ResponseTime({ ms }) {
+  if (ms === null || ms === undefined) {
+    return <span className="resp-pill resp-unknown">Unknown</span>
+  }
+  const tone = ms > 2500 ? 'slow' : ms >= 1000 ? 'average' : 'good'
+  const label = tone === 'slow' ? 'Slow' : tone === 'average' ? 'Average' : 'Good'
+  return (
+    <span className={`resp-pill resp-${tone}`}>
+      <span className="resp-dot" />
+      {ms} ms · {label}
+    </span>
+  )
+}
+
+function getSyncFreshness(lastSeenAt) {
+  if (!lastSeenAt) return { tone: 'critical', label: 'No sync data' }
+  const hours = (Date.now() - new Date(lastSeenAt).getTime()) / (1000 * 60 * 60)
+  if (hours < 12) return { tone: 'healthy', label: `Synced ${formatRelativeTime(lastSeenAt)}` }
+  if (hours < 48) return { tone: 'warning', label: `Synced ${formatRelativeTime(lastSeenAt)}` }
+  return { tone: 'critical', label: `Stale · ${formatRelativeTime(lastSeenAt)}` }
+}
+
 function getPageHealth(check) {
   if (!check) return { label: 'Not checked', status: 'unknown' }
   if (check.errorDetected) return { label: 'Error', status: 'critical' }
@@ -1108,6 +1130,7 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
   const coverageScore = Math.max(0, Math.min(100, 100 - (summary.unmonitoredImportantPages || 0) * 8))
   const recommendedActions = buildRecommendedActions({ summary, recentSites, latestAlerts, pluginUpdateTotal })
   const recentActivity = buildRecentActivity({ recentSites, recentChecks, latestAlerts })
+  const operationalInsights = buildOperationalInsights({ summary, alertSummary, avgResponse, pluginUpdateTotal, recentSites, recentChecks })
 
   return (
     <section className="page dashboard-page">
@@ -1153,12 +1176,7 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
           {loading && !recentSites.length ? (
             <TableSkeleton rows={4} />
           ) : (
-            <SiteTable
-              sites={recentSites.slice(0, 4)}
-              compact
-              emptyTitle="No recent syncs"
-              emptyDescription="Sites will appear here after the WordPress agent sends data."
-            />
+            <RecentlySyncedSites sites={recentSites.slice(0, 5)} />
           )}
         </Section>
         <MonitoringCoverage score={coverageScore} summary={summary} recentSites={recentSites} recentChecks={recentChecks} />
@@ -1181,7 +1199,10 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
             <RecentPageChecksTable checks={recentChecks.slice(0, 5)} />
           )}
         </Section>
-        <RecentActivity items={recentActivity} />
+        <OperationalInsights insights={operationalInsights} />
+      </div>
+      <div className="dashboard-grid dashboard-grid-activity">
+        <RecentActivity items={recentActivity} compact />
       </div>
     </section>
   )
@@ -1780,6 +1801,47 @@ function SiteTable({
   )
 }
 
+function RecentlySyncedSites({ sites }) {
+  if (!sites.length) {
+    return (
+      <EmptyState
+        title="No recent syncs"
+        description="Sites will appear here after the WordPress agent sends data."
+      />
+    )
+  }
+
+  return (
+    <div className="synced-sites-list">
+      {sites.map((site) => {
+        const fresh = getSyncFreshness(site.lastSeenAt)
+        const updates = site.pluginUpdatesCount || 0
+        return (
+          <div className="synced-site-row click-row" key={site.id} onClick={() => setRouteHash(`sites/${site.id}`)}>
+            <div className="site-avatar">{getInitials(getDomain(site.siteUrl))}</div>
+            <div className="synced-site-body">
+              <div className="synced-site-head">
+                <strong>{site.siteName}</strong>
+                <StatusBadge status={site.status} />
+              </div>
+              <span className="synced-site-domain">{getDomain(site.siteUrl)}</span>
+              <div className="synced-site-tags">
+                <span className={`sync-chip sync-chip-${fresh.tone}`}>
+                  <span className="sync-dot" />
+                  {fresh.label}
+                </span>
+                <span className={`sync-chip ${updates > 0 ? 'sync-chip-warning' : ''}`}>
+                  {updates} plugin update{updates === 1 ? '' : 's'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function RecentPageChecksTable({ checks }) {
   if (!checks.length) {
     return (
@@ -1816,7 +1878,9 @@ function RecentPageChecksTable({ checks }) {
               <td>
                 <PageCheckBadge check={check} />
               </td>
-              <td>{check.responseTimeMs ?? 'Unknown'} ms</td>
+              <td>
+                <ResponseTime ms={check.responseTimeMs} />
+              </td>
               <td>
                 <strong className="date-primary">{formatRelativeTime(check.checkedAt)}</strong>
                 <span>{formatDate(check.checkedAt)}</span>
@@ -3282,6 +3346,114 @@ function buildRecentActivity({ recentSites, recentChecks, latestAlerts }) {
     .slice(0, 4)
 }
 
+function buildOperationalInsights({ summary, alertSummary, avgResponse, pluginUpdateTotal, recentSites, recentChecks }) {
+  const insights = []
+  const criticalSites = summary.critical || 0
+  const warningSites = summary.warning || 0
+  const staleSites = summary.unknown || 0
+  const pageErrors = recentChecks.filter((check) => check.errorDetected).length
+  const updateSites = recentSites.filter((site) => (site.pluginUpdatesCount || 0) > 0).length
+  const criticalAlerts = alertSummary.criticalOpenCount || 0
+
+  if (criticalSites > 0 || criticalAlerts > 0) {
+    const count = Math.max(criticalSites, criticalAlerts)
+    insights.push({
+      severity: 'critical',
+      icon: 'critical',
+      title: `Critical risk on ${count} site${count === 1 ? '' : 's'}`,
+      detail: 'Needs immediate security hardening',
+    })
+  }
+
+  if (pageErrors > 0) {
+    insights.push({
+      severity: 'critical',
+      icon: 'warning',
+      title: `${pageErrors} page check${pageErrors === 1 ? '' : 's'} returned errors`,
+      detail: 'Investigate failing pages',
+    })
+  }
+
+  if (avgResponse !== null && avgResponse !== undefined) {
+    const tone = avgResponse > 2500 ? 'critical' : avgResponse >= 1000 ? 'warning' : 'healthy'
+    const note = avgResponse > 2500 ? 'slower than expected' : avgResponse >= 1000 ? 'within acceptable range' : 'fast and responsive'
+    insights.push({
+      severity: tone,
+      icon: 'activity',
+      title: `Average response time ${avgResponse} ms`,
+      detail: `Pages are ${note}`,
+    })
+  }
+
+  if (pluginUpdateTotal > 0) {
+    insights.push({
+      severity: 'warning',
+      icon: 'updates',
+      title: `${pluginUpdateTotal} plugin update${pluginUpdateTotal === 1 ? '' : 's'} pending`,
+      detail: updateSites ? `Update pressure across ${updateSites} site${updateSites === 1 ? '' : 's'}` : 'Update pressure on monitored sites',
+    })
+  }
+
+  if (staleSites > 0) {
+    insights.push({
+      severity: 'warning',
+      icon: 'sync',
+      title: `${staleSites} site${staleSites === 1 ? '' : 's'} with sync freshness concern`,
+      detail: 'Awaiting fresh data from the agent',
+    })
+  }
+
+  if (warningSites > 0 && insights.length < 5) {
+    insights.push({
+      severity: 'warning',
+      icon: 'warning',
+      title: `${warningSites} site${warningSites === 1 ? '' : 's'} need attention`,
+      detail: 'Review flagged advisories',
+    })
+  }
+
+  if (!insights.length) {
+    insights.push({
+      severity: 'healthy',
+      icon: 'healthy',
+      title: 'All monitored sites are healthy',
+      detail: 'No critical operational signals detected',
+    })
+    if ((alertSummary.resolvedLast24h || 0) > 0) {
+      const resolved = alertSummary.resolvedLast24h
+      insights.push({
+        severity: 'healthy',
+        icon: 'healthy',
+        title: `${resolved} issue${resolved === 1 ? '' : 's'} resolved in last 24h`,
+        detail: 'Recent remediations are working',
+      })
+    }
+  }
+
+  return insights.slice(0, 5)
+}
+
+function OperationalInsights({ insights }) {
+  return (
+    <Section title="Operational Insights" action={<button className="text-button" type="button" onClick={() => setRouteHash('alerts')}>View all</button>} flush>
+      <div className="insights-list">
+        {insights.map((insight, index) => (
+          <div className={`insight-row insight-${insight.severity}`} key={`${insight.title}-${index}`}>
+            <span className={`insight-icon dashboard-badge-${insight.severity === 'healthy' ? 'success' : insight.severity}`}>
+              <DashboardIcon type={insight.icon} />
+            </span>
+            <div className="insight-text">
+              <strong className="insight-title">{insight.title}</strong>
+              <span className="insight-detail">{insight.detail}</span>
+            </div>
+            <span className={`insight-dot insight-dot-${insight.severity}`} />
+          </div>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
 function ProgressRing({ value, label, status = 'healthy', size = 96 }) {
   const normalized = Math.max(0, Math.min(100, Number(value) || 0))
   const r = (size / 2) - 7
@@ -3422,13 +3594,13 @@ function UpdatePressure({ pluginUpdateTotal, recentSites }) {
   )
 }
 
-function RecentActivity({ items }) {
+function RecentActivity({ items, compact = false }) {
   return (
     <Section title="Recent Activity" action={<button className="text-button" type="button">View activity</button>}>
       {!items.length ? (
         <EmptyState title="No recent activity" description="Syncs, checks, and findings will appear here." />
       ) : (
-        <div className="activity-list">
+        <div className={`activity-list ${compact ? 'activity-list-compact' : ''}`}>
           {items.map((item, index) => (
             <div className="activity-item" key={`${item.title}-${index}`}>
               <span className={`activity-icon activity-icon-${item.type}`}><DashboardIcon type={item.type === 'monitor' ? 'sites' : item.type} /></span>

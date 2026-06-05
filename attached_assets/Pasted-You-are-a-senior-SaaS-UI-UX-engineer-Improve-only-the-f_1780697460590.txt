@@ -1,0 +1,110 @@
+You are a senior SaaS UI/UX engineer. Improve only the following parts of the existing SitePulse Dashboard UI. Do not redesign the whole dashboard. Keep the current layout, sidebar, header, routes, APIs, backend logic, and data fetching intact.
+
+Focus only on these improvements:
+
+1. Add an intelligent “Risk / Insight” widget
+
+Improve the dashboard so it feels more like a smart SaaS product, not just a collection of monitoring cards.
+
+Add a compact insight-based widget that summarizes important operational signals, such as:
+
+* Critical risk increased today
+* Average response time is slower than previous check
+* 1 site needs immediate security hardening
+* 1 site has sync freshness concern
+* Plugin update pressure exists on monitored sites
+
+This widget should feel like an executive insight card. It should not be large or noisy. Use a clean SaaS card style with:
+
+* title: “Risk Insights” or “Operational Insights”
+* 3 to 5 short insight rows
+* small status icons
+* severity indicators where needed
+* subtle colors only for meaning
+
+Place it where it best fits the existing dashboard layout. Prefer replacing or improving the current “Recent Activity” card if space is limited.
+
+2. Improve “Recently Synced Sites” card empty space
+
+The current “Recently Synced Sites” card has too much blank vertical space when there are only a few sites.
+
+Improve this card so the space is used better.
+
+Options:
+
+* reduce the card height if there are only a few rows
+* add useful sync metadata per site
+* add compact fields such as:
+
+  * Last Sync
+  * Next Sync
+  * Sync Status
+  * Plugin Updates
+  * Health Status
+* make row spacing better and more readable
+* keep the table clean and not crowded
+
+Do not add unnecessary charts here. This card should remain simple and operational.
+
+3. Improve “Recent Page Checks” response-time indicators
+
+The current response time values are too neutral. Improve the table so response time has meaning.
+
+Add visual indicators for response time:
+
+* Fast / Good: green
+* Average / Needs Review: amber
+* Slow: red
+
+Suggested thresholds:
+
+* Under 1000ms = Good
+* 1000ms to 2500ms = Average
+* Above 2500ms = Slow
+
+Show response time like:
+
+* 935 ms · Good
+* 1800 ms · Average
+* 3130 ms · Slow
+
+Use clean badges, small colored dots, or subtle pills. Keep it professional and readable.
+
+4. Make Recent Activity smaller / more secondary
+
+The current Recent Activity card should not compete with priority operational data.
+
+Improve it by either:
+
+* reducing its visual weight
+* converting it into a compact timeline
+* placing it lower in the dashboard
+* or replacing it with the new Risk / Operational Insights widget and moving Recent Activity to a smaller area
+
+Recent Activity should show:
+
+* short event title
+* related site
+* time
+* small icon
+* no heavy card styling
+
+It should feel secondary, not equal to the main health/action widgets.
+
+Important Requirements:
+
+* Do not change backend logic.
+* Do not break current dashboard API calls.
+* Do not remove existing dashboard data.
+* Keep current buttons working: Refresh, Add Site, View links, Manage links.
+* Keep the dashboard responsive.
+* Use existing styling system, preferably Tailwind if already used.
+* Avoid adding unnecessary dependencies.
+* Keep the UI consistent with the current SitePulse design: dark navy sidebar, light main area, blue/purple SaaS accents, soft cards, rounded corners, subtle shadows.
+
+After completing:
+
+1. List the files changed.
+2. Summarize the improvements.
+3. Confirm that backend/API logic was not changed.
+4. Mention any assumptions made.
