@@ -3007,6 +3007,23 @@ textarea {
   width: 16px;
 }
 
+.btn-with-icon {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+}
+
+.btn-with-icon svg {
+  fill: none;
+  flex-shrink: 0;
+  height: 13px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 13px;
+}
+
 .icon-kebab {
   background: transparent;
   border: 0;

@@ -282,7 +282,7 @@ function DashboardIcon({ type = 'info' }) {
     warning: ['M12 4l10 18H2z', 'M12 10v4', 'M12 17h.01'],
     critical: ['M12 3l7 3v5c0 4.8-3 8.2-7 10-4-1.8-7-5.2-7-10V6z', 'M12 8v5', 'M12 16h.01'],
     pages: ['M7 3h8l5 5v13H7z', 'M15 3v5h5', 'M10 13h7', 'M10 17h5'],
-    sync: ['M20 7h-5V2', 'M4 17h5v5', 'M20 7a8 8 0 0 0-13.7-3.4', 'M4 17a8 8 0 0 0 13.7 3.4'],
+    sync: ['M23 4v6h-6', 'M1 20v-6h6', 'M3.51 9a9 9 0 0 1 14.85-3.36L23 10', 'M1 14l4.64 4.36A9 9 0 0 0 20.49 15'],
     activity: ['M4 12h4l2-5 4 10 2-5h4'],
     updates: ['M12 3v12', 'M8 7l4-4 4 4', 'M5 21h14'],
   }
@@ -1115,10 +1115,8 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
         action={
           <div className="header-actions">
             <RefreshMeta refreshedAt={lastRefreshed} refreshing={refreshing} />
-            <button className="secondary-button small icon-button" type="button" onClick={() => loadSummary(true)} aria-label="Refresh dashboard">
+            <button className="secondary-button small btn-with-icon" type="button" onClick={() => loadSummary(true)}>
               <DashboardIcon type="sync" />
-            </button>
-            <button className="secondary-button small" type="button" onClick={() => loadSummary(true)}>
               Refresh
             </button>
             <button className="primary-button small" type="button" onClick={() => setRouteHash('sites')}>
