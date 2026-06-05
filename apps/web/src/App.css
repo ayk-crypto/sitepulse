@@ -834,7 +834,7 @@
 .health-breakdown-list {
   column-gap: 8px;
   display: grid;
-  grid-template-columns: 20px 1fr 110px auto;
+  grid-template-columns: 20px 1fr 110px 26px auto;
 }
 
 .health-breakdown-row {
@@ -864,7 +864,7 @@
   background: #e9eef8;
   border-radius: 999px;
   display: block;
-  height: 18px;
+  height: 8px;
   overflow: hidden;
   padding: 0;
   position: relative;
@@ -880,17 +880,19 @@
   top: 0;
 }
 
-.health-progress-label {
-  color: #475569;
-  font-size: 10px;
+.health-score-num {
+  color: #64748b;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1;
-  pointer-events: none;
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
+  text-align: right;
+}
+
+.health-breakdown-list .dashboard-badge {
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0;
 }
 
 .health-breakdown-row > span:last-child {
