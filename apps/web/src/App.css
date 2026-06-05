@@ -288,7 +288,7 @@
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  padding: 16px 28px;
+  padding: 12px 20px 12px 28px;
   position: sticky;
   top: 0;
   z-index: 5;
@@ -2907,9 +2907,9 @@ textarea {
   border-radius: 10px;
   display: flex;
   gap: 9px;
-  max-width: 280px;
+  max-width: 260px;
   min-width: 0;
-  padding: 6px 8px 6px 6px;
+  padding: 5px 4px 5px 6px;
 }
 
 .top-logout-btn {

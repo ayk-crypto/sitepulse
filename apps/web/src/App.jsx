@@ -1115,13 +1115,13 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
         action={
           <div className="header-actions">
             <RefreshMeta refreshedAt={lastRefreshed} refreshing={refreshing} />
-            <button className="secondary-button icon-button" type="button" onClick={() => loadSummary(true)} aria-label="Refresh dashboard">
+            <button className="secondary-button small icon-button" type="button" onClick={() => loadSummary(true)} aria-label="Refresh dashboard">
               <DashboardIcon type="sync" />
             </button>
-            <button className="secondary-button" type="button" onClick={() => loadSummary(true)}>
+            <button className="secondary-button small" type="button" onClick={() => loadSummary(true)}>
               Refresh
             </button>
-            <button className="primary-button" type="button" onClick={() => setRouteHash('sites')}>
+            <button className="primary-button small" type="button" onClick={() => setRouteHash('sites')}>
               Add Site
             </button>
           </div>
