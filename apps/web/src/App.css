@@ -2376,24 +2376,17 @@ textarea {
 }
 
 .login-icon-badge {
-  align-items: center;
-  background: #eef4ff;
-  border: 1px solid #d4e3ff;
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
   display: inline-flex;
-  height: 56px;
-  justify-content: center;
-  overflow: hidden;
-  width: 56px;
+  flex: 0 0 auto;
 }
 
 .login-icon-badge img {
   display: block;
-  height: 56px;
-  object-fit: cover;
-  object-position: center center;
-  width: 56px;
+  drop-shadow: 0 8px 24px rgba(37, 99, 235, 0.25);
+  filter: drop-shadow(0 8px 20px rgba(37, 99, 235, 0.28));
+  height: 60px;
+  object-fit: contain;
+  width: 60px;
 }
 
 .login-form-top h2 {
