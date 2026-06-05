@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("admin")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Client {
+  id            String   @id @default(cuid())
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  sites         Site[]
+}
+
+model Site {
+  id             String          @id @default(cuid())
+  clientId       String
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  siteName       String
+  siteUrl        String          @unique
+  apiKeyHash     String
+  status         String          @default("unknown")
+  lastSeenAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  snapshots      SiteSnapshot[]
+  plugins        SitePlugin[]
+  monitoredPages MonitoredPage[]
+}
+
+model SiteSnapshot {
+  id                  String   @id @default(cuid())
+  siteId              String
+  site                Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  wordpressVersion    String?
+  phpVersion          String?
+  mysqlVersion        String?
+  activeThemeName     String?
+  activeThemeVersion  String?
+  coreUpdateAvailable Boolean  @default(false)
+  pluginUpdatesCount  Int      @default(0)
+  themeUpdateAvailable Boolean @default(false)
+  debugMode           Boolean  @default(false)
+  fileEditorEnabled   Boolean  @default(false)
+  createdAt           DateTime @default(now())
+}
+
+model SitePlugin {
+  id              String   @id @default(cuid())
+  siteId          String
+  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name            String
+  slug            String
+  version         String?
+  latestVersion   String?
+  status          String
+  updateAvailable Boolean  @default(false)
+  lastSeenAt      DateTime @default(now())
+}
+
+model MonitoredPage {
+  id        String      @id @default(cuid())
+  siteId    String
+  site      Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  label     String
+  url       String
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  checks    PageCheck[]
+}
+
+model PageCheck {
+  id              String        @id @default(cuid())
+  monitoredPageId String
+  monitoredPage   MonitoredPage @relation(fields: [monitoredPageId], references: [id], onDelete: Cascade)
+  httpStatus      Int?
+  responseTimeMs  Int?
+  errorDetected   Boolean       @default(false)
+  errorSummary    String?
+  checkedAt       DateTime      @default(now())
+}
