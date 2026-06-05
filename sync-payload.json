@@ -1,0 +1,24 @@
+﻿{
+  "site_url": "https://example.com",
+  "wordpress_version": "6.5.5",
+  "php_version": "8.2.10",
+  "mysql_version": "8.0",
+  "active_theme": {
+    "name": "Astra",
+    "version": "4.8.0",
+    "update_available": false
+  },
+  "core_update_available": false,
+  "debug_mode": false,
+  "file_editor_enabled": false,
+  "plugins": [
+    {
+      "name": "Elementor",
+      "slug": "elementor/elementor.php",
+      "version": "3.21.0",
+      "latest_version": "3.23.0",
+      "status": "active",
+      "update_available": true
+    }
+  ]
+}
