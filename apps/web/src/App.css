@@ -940,8 +940,10 @@
 }
 
 .recommended-action-badge-col {
+  display: flex;
   flex-shrink: 0;
-  padding-top: 2px;
+  justify-content: center;
+  width: 68px;
 }
 
 .recommended-action-content {
