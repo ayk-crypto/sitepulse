@@ -741,11 +741,22 @@
 }
 
 .health-overview-dashboard {
-  align-items: start;
+  align-items: center;
   display: grid;
   gap: 20px;
   grid-template-columns: 150px minmax(0, 1fr);
-  padding-top: 2px;
+}
+
+.dashboard-page .section-card:has(.health-overview-dashboard) {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-page .section-card:has(.health-overview-dashboard) .section-body {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  justify-content: center;
 }
 
 .health-score-block {
@@ -822,7 +833,7 @@
 .health-breakdown-list {
   column-gap: 8px;
   display: grid;
-  grid-template-columns: 20px 1fr 80px auto 36px;
+  grid-template-columns: 20px 1fr 110px auto;
 }
 
 .health-breakdown-row {
@@ -849,28 +860,40 @@
 }
 
 .health-progress {
-  align-items: stretch;
-  background: #edf2f7;
+  background: #e9eef8;
   border-radius: 999px;
-  height: 7px;
-  max-height: 7px;
+  display: block;
+  height: 18px;
   overflow: hidden;
+  padding: 0;
+  position: relative;
   width: 100%;
 }
 
 .health-progress i {
-  background: linear-gradient(90deg, var(--blue), #7c3aed);
-  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #7c3aed);
+  bottom: 0;
   display: block;
-  height: 100%;
-  min-height: 7px;
+  left: 0;
+  position: absolute;
+  top: 0;
+}
+
+.health-progress-label {
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
 }
 
 .health-breakdown-row > span:last-child {
-  color: #334155;
-  font-size: 12px;
-  font-weight: 800;
-  text-align: right;
+  font-size: 11px;
 }
 
 .breakdown-icon {
