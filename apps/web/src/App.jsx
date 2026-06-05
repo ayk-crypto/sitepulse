@@ -4,7 +4,8 @@ import './App.css'
 const DEFAULT_API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'https://sitepulse-api-84m8.onrender.com'
 const API_URL_STORAGE_KEY = 'sitepulse_api_base_url'
-const ADMIN_TOKEN_STORAGE_KEY = 'sitepulse_admin_token'
+const AUTH_TOKEN_STORAGE_KEY = 'sitepulse_auth_token'
+const AUTH_USER_STORAGE_KEY = 'sitepulse_auth_user'
 const CACHE_PREFIX = 'sitepulse_cache'
 
 const inFlightRequests = new Map()
@@ -14,6 +15,7 @@ const navItems = [
   { id: 'alerts', label: 'Alerts' },
   { id: 'sites', label: 'Sites' },
   { id: 'clients', label: 'Clients' },
+  { id: 'users', label: 'Users', roles: ['owner', 'admin'] },
   { id: 'settings', label: 'Settings' },
 ]
 
@@ -105,7 +107,9 @@ async function safeFetchJson(url, options = {}, endpoint = url) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.error || `HTTP ${response.status} from ${endpoint}`)
+    const error = new Error(data?.error || `HTTP ${response.status} from ${endpoint}`)
+    error.status = response.status
+    throw error
   }
 
   return data
@@ -197,6 +201,21 @@ function PageCheckBadge({ check }) {
   return <span className="status status-healthy">OK</span>
 }
 
+function getPageHealth(check) {
+  if (!check) return { label: 'Not checked', status: 'unknown' }
+  if (check.errorDetected) return { label: 'Error', status: 'critical' }
+  if (check.httpStatus >= 400 || check.httpStatus === null || check.httpStatus === undefined) {
+    return { label: 'Down', status: 'critical' }
+  }
+  if (check.responseTimeMs > 5000) return { label: 'Slow', status: 'warning' }
+  return { label: 'Online', status: 'healthy' }
+}
+
+function PageStatusBadge({ check }) {
+  const health = getPageHealth(check)
+  return <span className={`status status-${health.status}`}>{health.label}</span>
+}
+
 function AlertSeverityBadge({ severity = 'info' }) {
   return <span className={`status status-${severity}`}>{severity}</span>
 }
@@ -221,9 +240,15 @@ function App() {
   const [apiBaseUrl, setApiBaseUrl] = useState(
     () => localStorage.getItem(API_URL_STORAGE_KEY) || DEFAULT_API_BASE_URL,
   )
-  const [adminToken, setAdminToken] = useState(
-    () => localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || '',
-  )
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || '')
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(AUTH_USER_STORAGE_KEY) || 'null')
+    } catch {
+      return null
+    }
+  })
+  const [tenant, setTenant] = useState(null)
   const [apiStatus, setApiStatus] = useState({ state: 'checking', label: 'Checking API' })
 
   useEffect(() => {
@@ -237,22 +262,36 @@ function App() {
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
+  const logout = useCallback(() => {
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+    setAuthToken('')
+    setCurrentUser(null)
+    setTenant(null)
+    setRouteHash('login')
+  }, [])
+
   const request = useCallback(
     async (path, options = {}) => {
-      return safeFetchJson(
-        `${normalizeUrl(apiBaseUrl)}${path}`,
-        {
-          ...options,
-          headers: {
-            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-            ...(adminToken ? { 'x-sitepulse-admin-token': adminToken } : {}),
-            ...options.headers,
+      try {
+        return await safeFetchJson(
+          `${normalizeUrl(apiBaseUrl)}${path}`,
+          {
+            ...options,
+            headers: {
+              ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+              ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+              ...options.headers,
+            },
           },
-        },
-        path,
-      )
+          path,
+        )
+      } catch (error) {
+        if (error.status === 401) logout()
+        throw error
+      }
     },
-    [adminToken, apiBaseUrl],
+    [apiBaseUrl, authToken, logout],
   )
 
   const checkApiStatus = useCallback(async () => {
@@ -282,45 +321,106 @@ function App() {
     const nextApiUrl = normalizeUrl(nextSettings.apiBaseUrl || DEFAULT_API_BASE_URL)
 
     localStorage.setItem(API_URL_STORAGE_KEY, nextApiUrl)
-    localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, nextSettings.adminToken || '')
     setApiBaseUrl(nextApiUrl)
-    setAdminToken(nextSettings.adminToken || '')
   }
+
+  const login = async ({ email, password }) => {
+    const data = await safeFetchJson(
+      `${normalizeUrl(apiBaseUrl)}/api/auth/login`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      },
+      '/api/auth/login',
+    )
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token)
+    localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(data.user))
+    setAuthToken(data.token)
+    setCurrentUser(data.user)
+    setRouteHash('dashboard')
+  }
+
+  const loadMe = useCallback(async () => {
+    if (!authToken) return
+    try {
+      const data = await request('/api/auth/me')
+      setCurrentUser(data.user)
+      setTenant(data.tenant)
+      localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(data.user))
+    } catch {
+      logout()
+    }
+  }, [authToken, logout, request])
+
+  useEffect(() => {
+    loadMe()
+  }, [loadMe])
 
   const activePage = route.startsWith('sites/') ? 'site-detail' : route
   const sidebarPage = activePage === 'site-detail' ? 'sites' : activePage
+  const isLoginRoute = route === 'login'
+  const isAuthenticated = !!authToken && !!currentUser
+
+  if (!isAuthenticated || isLoginRoute) {
+    return (
+      <LoginPage
+        apiBaseUrl={apiBaseUrl}
+        apiStatus={apiStatus}
+        onApiBaseUrlChange={(nextUrl) => {
+          const normalized = normalizeUrl(nextUrl || DEFAULT_API_BASE_URL)
+          localStorage.setItem(API_URL_STORAGE_KEY, normalized)
+          setApiBaseUrl(normalized)
+        }}
+        onCheckApi={checkApiStatus}
+        onLogin={login}
+      />
+    )
+  }
 
   return (
     <div className="app-shell">
-      <Sidebar activePage={sidebarPage} />
+      <Sidebar activePage={sidebarPage} currentUser={currentUser} />
       <main className="main-panel">
-        <TopBar apiBaseUrl={apiBaseUrl} apiStatus={apiStatus} onRefresh={checkApiStatus} />
+        <TopBar
+          apiBaseUrl={apiBaseUrl}
+          apiStatus={apiStatus}
+          currentUser={currentUser}
+          onRefresh={checkApiStatus}
+          onLogout={logout}
+        />
         {activePage === 'dashboard' && (
-          <DashboardPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!adminToken} />
+          <DashboardPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!authToken} />
         )}
         {activePage === 'sites' && (
-          <SitesPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!adminToken} />
+          <SitesPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!authToken} currentUser={currentUser} />
         )}
         {activePage === 'alerts' && (
-          <AlertsPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!adminToken} />
+          <AlertsPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!authToken} currentUser={currentUser} />
         )}
         {activePage === 'site-detail' && (
           <SiteDetailPage
             siteId={route.split('/')[1]}
             request={request}
             apiBaseUrl={apiBaseUrl}
-            hasToken={!!adminToken}
+            hasToken={!!authToken}
+            currentUser={currentUser}
           />
         )}
         {activePage === 'clients' && (
-          <ClientsPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!adminToken} />
+          <ClientsPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!authToken} currentUser={currentUser} />
+        )}
+        {activePage === 'users' && ['owner', 'admin'].includes(currentUser.role) && (
+          <UsersPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!authToken} />
         )}
         {activePage === 'settings' && (
           <SettingsPage
             apiBaseUrl={apiBaseUrl}
-            adminToken={adminToken}
+            currentUser={currentUser}
+            tenant={tenant}
             onSave={saveSettings}
             onCheckApi={checkApiStatus}
+            onLogout={logout}
           />
         )}
       </main>
@@ -328,7 +428,85 @@ function App() {
   )
 }
 
-function Sidebar({ activePage }) {
+function LoginPage({ apiBaseUrl, apiStatus, onApiBaseUrlChange, onCheckApi, onLogin }) {
+  const [form, setForm] = useState({ email: 'admin@sitepulse.local', password: '' })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function submit(event) {
+    event.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      await onLogin(form)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="login-shell">
+      <section className="login-panel">
+        <div className="brand login-brand">
+          <div className="brand-mark">SP</div>
+          <div>
+            <div className="brand-name">SitePulse</div>
+            <div className="brand-subtitle">Onset Media</div>
+          </div>
+        </div>
+        <h1>Sign in to your workspace</h1>
+        <p>Monitor WordPress health, alerts, and critical pages across your client sites.</p>
+        <ErrorState message={error} />
+        <form className="stack-form" onSubmit={submit}>
+          <label>
+            Email
+            <input
+              type="email"
+              value={form.email}
+              onChange={(event) => setForm({ ...form, email: event.target.value })}
+              required
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={form.password}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              required
+            />
+          </label>
+          <button className="primary-button" type="submit" disabled={loading}>
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+        </form>
+        <div className="login-api-box">
+          <label>
+            Backend API URL
+            <input
+              value={apiBaseUrl}
+              onChange={(event) => onApiBaseUrlChange(event.target.value)}
+            />
+          </label>
+          <div className="api-pill">
+            <span className={`dot ${apiStatus.state}`} />
+            <span>{apiStatus.label}</span>
+            <button className="secondary-button small" type="button" onClick={onCheckApi}>
+              Test
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function Sidebar({ activePage, currentUser }) {
+  const visibleNavItems = navItems.filter((item) => !item.roles || item.roles.includes(currentUser?.role))
+
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -339,7 +517,7 @@ function Sidebar({ activePage }) {
         </div>
       </div>
       <nav className="nav-list" aria-label="Primary navigation">
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <button
             className={activePage === item.id ? 'nav-item active' : 'nav-item'}
             key={item.id}
@@ -350,11 +528,15 @@ function Sidebar({ activePage }) {
           </button>
         ))}
       </nav>
+      <div className="sidebar-user">
+        <strong>{currentUser?.name}</strong>
+        <span>{currentUser?.role}</span>
+      </div>
     </aside>
   )
 }
 
-function TopBar({ apiBaseUrl, apiStatus, onRefresh }) {
+function TopBar({ apiBaseUrl, apiStatus, currentUser, onRefresh, onLogout }) {
   return (
     <header className="top-bar">
       <div>
@@ -367,6 +549,13 @@ function TopBar({ apiBaseUrl, apiStatus, onRefresh }) {
         <code>{apiBaseUrl}</code>
         <button className="secondary-button small" type="button" onClick={onRefresh}>
           Test
+        </button>
+      </div>
+      <div className="top-user">
+        <strong>{currentUser?.name}</strong>
+        <span>{currentUser?.email}</span>
+        <button className="secondary-button small" type="button" onClick={onLogout}>
+          Logout
         </button>
       </div>
     </header>
@@ -688,7 +877,7 @@ function Metric({ label, value, status, detail }) {
   )
 }
 
-function AlertsPage({ request, apiBaseUrl, hasToken }) {
+function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
   const [alerts, setAlerts] = useState([])
   const [summary, setSummary] = useState(null)
   const [selectedAlert, setSelectedAlert] = useState(null)
@@ -696,6 +885,7 @@ function AlertsPage({ request, apiBaseUrl, hasToken }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [actionId, setActionId] = useState('')
+  const canActOnAlerts = ['owner', 'admin', 'manager'].includes(currentUser?.role)
 
   const loadAlerts = useCallback(async (force = false) => {
     if (!hasToken) return
@@ -822,7 +1012,7 @@ function AlertsPage({ request, apiBaseUrl, hasToken }) {
             />
           )}
         </Section>
-        <AlertDetailCard alert={selectedAlert} actionId={actionId} onAction={runAlertAction} />
+      <AlertDetailCard alert={selectedAlert} actionId={actionId} onAction={canActOnAlerts ? runAlertAction : null} />
       </div>
     </section>
   )
@@ -906,18 +1096,20 @@ function AlertDetailCard({ alert, actionId, onAction }) {
             <strong>Recommendation</strong>
             <p>{alert.recommendation || 'No recommendation provided.'}</p>
           </div>
-          <div className="alert-action-panel">
-            <button className="secondary-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'acknowledge')}>Acknowledge</button>
-            <button className="secondary-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'snooze')}>Snooze 24h</button>
-            <button className="danger-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'resolve')}>Resolve</button>
-          </div>
+          {onAction && (
+            <div className="alert-action-panel">
+              <button className="secondary-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'acknowledge')}>Acknowledge</button>
+              <button className="secondary-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'snooze')}>Snooze 24h</button>
+              <button className="danger-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'resolve')}>Resolve</button>
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-function SitesPage({ request, apiBaseUrl, hasToken }) {
+function SitesPage({ request, apiBaseUrl, hasToken, currentUser }) {
   const [sites, setSites] = useState([])
   const [clients, setClients] = useState([])
   const [openAlerts, setOpenAlerts] = useState([])
@@ -930,6 +1122,8 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [creating, setCreating] = useState(false)
+  const canManageSites = ['owner', 'admin', 'manager'].includes(currentUser?.role)
+  const canAdminSites = ['owner', 'admin'].includes(currentUser?.role)
 
   const loadData = useCallback(async (force = false) => {
     if (!hasToken) return
@@ -1100,16 +1294,16 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
                 acc[siteId] = [...(acc[siteId] || []), alert]
                 return acc
               }, {})}
-              onEdit={editSite}
-              onArchive={archiveSite}
-              onRestore={restoreSite}
-              onDelete={deleteSite}
+              onEdit={canManageSites ? editSite : null}
+              onArchive={canAdminSites ? archiveSite : null}
+              onRestore={canAdminSites ? restoreSite : null}
+              onDelete={canAdminSites ? deleteSite : null}
               emptyTitle="No sites yet"
               emptyDescription="Create a site to generate a unique API key for the WordPress plugin."
             />
           )}
         </Section>
-        <Section title="Create site">
+        {canManageSites && <Section title="Create site">
           <form className="stack-form" onSubmit={createSite}>
             <label>
               Client
@@ -1160,7 +1354,7 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
               </div>
             </div>
           )}
-        </Section>
+        </Section>}
       </div>
     </section>
   )
@@ -1312,7 +1506,77 @@ function RecentPageChecksTable({ checks }) {
   )
 }
 
-function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
+function HealthOverviewCard({ label, value, detail, status }) {
+  return (
+    <div className={`health-overview-card ${status ? `health-overview-${status}` : ''}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </div>
+  )
+}
+
+function PriorityIssues({ alerts, site }) {
+  if (!alerts.length) {
+    return (
+      <EmptyState
+        title="No priority issues"
+        description="SitePulse has not detected active advisory items for this site."
+      />
+    )
+  }
+
+  return (
+    <div className="priority-issue-list">
+      {alerts.map((alert) => (
+        <article key={alert.id} className={`priority-issue priority-${alert.severity}`}>
+          <div className="priority-issue-main">
+            <AlertSeverityBadge severity={alert.severity} />
+            <div>
+              <h4>{alert.title}</h4>
+              <p>{alert.message || 'This issue may affect site health, security, or visitor experience.'}</p>
+            </div>
+          </div>
+          <div className="priority-issue-advice">
+            <span>Recommended action</span>
+            <strong>{alert.recommendation || 'Review this finding and apply the recommended fix.'}</strong>
+          </div>
+          <div className="priority-issue-meta">
+            <span>{alert.site?.siteName || site?.siteName || 'This site'}</span>
+            <span>{formatRelativeTime(alert.lastSeenAt)}</span>
+            <button className="secondary-button small" type="button" onClick={() => setRouteHash('alerts')}>
+              View Fix
+            </button>
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function IntelligenceCard({ title, items, tone }) {
+  return (
+    <div className={`intelligence-card ${tone ? `intelligence-${tone}` : ''}`}>
+      <h4>{title}</h4>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function EnvironmentCard({ label, value, status }) {
+  return (
+    <div className={`environment-card ${status ? `environment-${status}` : ''}`}>
+      <span>{label}</span>
+      <strong>{value || 'Unknown'}</strong>
+    </div>
+  )
+}
+
+function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken, currentUser }) {
   const [site, setSite] = useState(null)
   const [relatedAlerts, setRelatedAlerts] = useState([])
   const [pages, setPages] = useState([])
@@ -1331,6 +1595,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
   const [checkingAll, setCheckingAll] = useState(false)
   const [addingPage, setAddingPage] = useState(false)
   const [addingDiscovered, setAddingDiscovered] = useState(false)
+  const canManagePages = ['owner', 'admin', 'manager'].includes(currentUser?.role)
 
   const detailCacheName = `site:${siteId}`
   const pagesCacheName = `site:${siteId}:pages`
@@ -1560,13 +1825,33 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
 
   const snapshot = site?.latestSnapshot
   const updateCount = snapshot?.pluginUpdatesCount ?? 0
-  const flags = [
-    snapshot?.coreUpdateAvailable && 'Core update available',
-    snapshot?.themeUpdateAvailable && 'Theme update available',
-    snapshot?.debugMode && 'Debug mode enabled',
-    snapshot?.fileEditorEnabled && 'File editor enabled',
-  ].filter(Boolean)
   const topAlertReasons = getTopIssueReasons(relatedAlerts, 3)
+  const pageChecks = pages.map((page) => page.latestCheck).filter(Boolean)
+  const successfulChecks = pageChecks.filter((check) => !check.errorDetected && check.httpStatus < 400)
+  const uptime = pageChecks.length ? Math.round((successfulChecks.length / pageChecks.length) * 100) : null
+  const avgResponseTime = pageChecks.length
+    ? Math.round(pageChecks.reduce((sum, check) => sum + (check.responseTimeMs || 0), 0) / pageChecks.length)
+    : null
+  const lastCheckedValues = [
+    site?.lastSeenAt,
+    ...pageChecks.map((check) => check.checkedAt),
+  ].filter(Boolean)
+  const lastCheckedAt = lastCheckedValues
+    .map((value) => new Date(value))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => b.getTime() - a.getTime())[0]
+  const securityItems = [
+    snapshot?.debugMode ? 'Debug mode is enabled and should be disabled on production.' : 'Debug mode is disabled.',
+    snapshot?.fileEditorEnabled ? 'File editor is enabled and increases admin risk.' : 'File editor is disabled.',
+    relatedAlerts.some((alert) => alert.severity === 'critical')
+      ? 'Critical alerts are open and need review.'
+      : 'No critical alert pressure detected.',
+  ]
+  const maintenanceItems = [
+    snapshot?.coreUpdateAvailable ? 'WordPress core update is available.' : 'No core update reported.',
+    snapshot?.themeUpdateAvailable ? 'Theme update is available.' : 'Theme appears current.',
+    updateCount > 0 ? `${updateCount} plugin update${updateCount === 1 ? '' : 's'} available.` : 'Plugins appear current.',
+  ]
   const filteredDiscoveredPages = discoveredPages.filter((page) => {
     if (discoveryFilter === 'high') return page.importance === 'high'
     if (discoveryFilter === 'unmonitored') return !page.isMonitored
@@ -1576,84 +1861,78 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
     return true
   })
   const hasHighUnmonitored = discoveredPages.some((page) => page.importance === 'high' && !page.isMonitored)
+  const monitoringItems = [
+    pages.length ? `${pages.length} monitored page${pages.length === 1 ? '' : 's'} configured.` : 'No monitored pages configured yet.',
+    pageChecks.length ? `${pageChecks.length} page check${pageChecks.length === 1 ? '' : 's'} recorded.` : 'No page checks recorded yet.',
+    hasHighUnmonitored ? 'High-priority discovered pages are not monitored.' : 'No high-priority unmonitored pages flagged.',
+  ]
 
   return (
     <section className="page">
       <button className="text-button" type="button" onClick={() => setRouteHash('sites')}>
         Back to sites
       </button>
-      <PageHeader
-        title={site?.siteName || 'Site Detail'}
-        description={site?.siteUrl || 'Review the latest snapshot and plugin inventory.'}
-        action={
-          site && (
-            <div className="header-actions">
-              <RefreshMeta
-                refreshedAt={readCache(detailCacheName, apiBaseUrl)?.refreshedAt}
-                refreshing={refreshing}
-              />
-              <button className="secondary-button" type="button" onClick={() => loadSite(true)}>
-                Refresh
-              </button>
-            </div>
-          )
-        }
-      />
       {!hasToken && <EmptyTokenNotice />}
       {loading && !site && <DetailSkeleton />}
       <ErrorState message={error} />
       {site && (
-        <div className="detail-stack">
-          <Section title="Website Overview">
-            <div className="overview-row">
+        <div className="detail-stack site-monitoring-stack">
+          <section className={`site-hero-card site-hero-${site.status || 'unknown'}`}>
+            <div className="site-hero-main">
               <div className="site-avatar large">{getInitials(getDomain(site.siteUrl))}</div>
               <div>
-                <h3>{site.siteName}</h3>
+                <div className="site-title-line">
+                  <h2>{site.siteName}</h2>
+                  <StatusBadge status={site.status} />
+                </div>
                 <a href={site.siteUrl} target="_blank" rel="noreferrer">
                   {site.siteUrl}
                 </a>
                 <p>{site.client?.name || 'No client assigned'}</p>
               </div>
-              <StatusBadge status={site.status} />
             </div>
+            <div className="site-hero-actions">
+              <span>Last checked: {lastCheckedAt ? formatRelativeTime(lastCheckedAt) : 'No checks yet'}</span>
+              <span>Last refreshed: {formatDate(readCache(detailCacheName, apiBaseUrl)?.refreshedAt)}</span>
+              <div className="header-actions">
+                <button className="secondary-button" type="button" onClick={() => setRouteHash('alerts')}>
+                  View Fix Guide
+                </button>
+                <button className="primary-button" type="button" onClick={() => loadSite(true)}>
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <div className="health-overview-grid">
+            <HealthOverviewCard label="Overall Status" value={site.status || 'unknown'} detail={topAlertReasons[0] || 'Current site posture'} status={site.status} />
+            <HealthOverviewCard label="Open Alerts" value={relatedAlerts.length} detail={relatedAlerts.length ? 'Needs review' : 'No open issues'} status={relatedAlerts.some((alert) => alert.severity === 'critical') ? 'critical' : relatedAlerts.length ? 'warning' : 'healthy'} />
+            <HealthOverviewCard label="Plugin Updates" value={updateCount} detail={updateCount ? 'Updates available' : 'No plugin updates'} status={updateCount ? 'warning' : 'healthy'} />
+            <HealthOverviewCard label="Uptime" value={uptime === null ? 'n/a' : `${uptime}%`} detail={pageChecks.length ? 'Based on latest page checks' : 'No checks yet'} status={uptime === null ? 'unknown' : uptime < 90 ? 'critical' : uptime < 99 ? 'warning' : 'healthy'} />
+            <HealthOverviewCard label="Avg Response Time" value={avgResponseTime === null ? 'n/a' : `${avgResponseTime}ms`} detail={pageChecks.length ? 'Latest monitored pages' : 'No response data'} status={avgResponseTime === null ? 'unknown' : avgResponseTime > 5000 ? 'critical' : avgResponseTime > 2000 ? 'warning' : 'healthy'} />
+          </div>
+
+          <Section title="Priority Issues" meta={`${relatedAlerts.length} open`}>
+            <PriorityIssues alerts={relatedAlerts} site={site} />
           </Section>
 
-          <Section title="Open Alerts" meta={`${relatedAlerts.length} open`}>
-            <AlertTable
-              alerts={relatedAlerts}
-              compact
-              emptyTitle="No open alerts for this site"
-              emptyDescription="SitePulse has not detected active alert conditions for this site."
-            />
-          </Section>
-
-          <Section title="Health Summary">
-            <div className="detail-grid">
-              <DetailItem label="Last seen" value={formatDate(site.lastSeenAt)} />
-              <DetailItem label="Plugin updates" value={<CountBadge value={updateCount} />} />
-              <DetailItem label="Health flags" value={flags.length ? flags.join(', ') : 'None'} />
-              <DetailItem label="Top alert reasons" value={topAlertReasons.length ? topAlertReasons.join(' · ') : 'None'} />
+          <Section title="Site Health Intelligence">
+            <div className="intelligence-grid">
+              <IntelligenceCard title="Security Flags" items={securityItems} tone={snapshot?.debugMode || snapshot?.fileEditorEnabled ? 'critical' : 'healthy'} />
+              <IntelligenceCard title="Maintenance" items={maintenanceItems} tone={updateCount || snapshot?.coreUpdateAvailable || snapshot?.themeUpdateAvailable ? 'warning' : 'healthy'} />
+              <IntelligenceCard title="Monitoring" items={monitoringItems} tone={hasHighUnmonitored ? 'warning' : 'healthy'} />
             </div>
           </Section>
 
           <Section title="WordPress Environment">
-            <div className="detail-grid">
-              <DetailItem label="WordPress version" value={snapshot?.wordpressVersion || 'No snapshot'} />
-              <DetailItem label="PHP version" value={snapshot?.phpVersion || 'No snapshot'} />
-              <DetailItem label="MySQL version" value={snapshot?.mysqlVersion || 'No snapshot'} />
-              <DetailItem
-                label="Active theme"
-                value={
-                  snapshot
-                    ? `${snapshot.activeThemeName || 'Unknown'} ${snapshot.activeThemeVersion || ''}`
-                    : 'No snapshot'
-                }
-              />
-              <DetailItem label="Debug mode" value={snapshot?.debugMode ? 'Enabled' : 'Disabled'} />
-              <DetailItem
-                label="File editor"
-                value={snapshot?.fileEditorEnabled ? 'Enabled' : 'Disabled'}
-              />
+            <div className="environment-grid">
+              <EnvironmentCard label="WordPress Version" value={snapshot?.wordpressVersion || 'No snapshot'} />
+              <EnvironmentCard label="PHP Version" value={snapshot?.phpVersion || 'No snapshot'} />
+              <EnvironmentCard label="MySQL Version" value={snapshot?.mysqlVersion || 'No snapshot'} />
+              <EnvironmentCard label="Active Theme" value={snapshot ? `${snapshot.activeThemeName || 'Unknown'} ${snapshot.activeThemeVersion || ''}` : 'No snapshot'} />
+              <EnvironmentCard label="Debug Mode" value={snapshot?.debugMode ? 'Enabled' : 'Disabled'} status={snapshot?.debugMode ? 'critical' : 'healthy'} />
+              <EnvironmentCard label="File Editor" value={snapshot?.fileEditorEnabled ? 'Enabled' : 'Disabled'} status={snapshot?.fileEditorEnabled ? 'warning' : 'healthy'} />
             </div>
           </Section>
 
@@ -1669,7 +1948,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
                 className="secondary-button"
                 type="button"
                 onClick={checkAllPages}
-                disabled={checkingAll || !pages.length}
+                disabled={!canManagePages || checkingAll || !pages.length}
               >
                 {checkingAll ? 'Checking...' : 'Check all pages'}
               </button>
@@ -1677,7 +1956,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
           >
             <ErrorState message={pageError} />
             <div className="monitor-layout">
-              <form className="stack-form monitor-form" onSubmit={addMonitoredPage}>
+              {canManagePages && <form className="stack-form monitor-form" onSubmit={addMonitoredPage}>
                 <label>
                   Label
                   <input
@@ -1699,15 +1978,15 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
                 <button className="primary-button" type="submit" disabled={addingPage}>
                   {addingPage ? 'Adding...' : 'Add Page'}
                 </button>
-              </form>
+              </form>}
               {pagesLoading && !pages.length ? (
                 <TableSkeleton rows={4} />
               ) : (
                 <MonitoredPagesTable
                   pages={pages}
                   actionId={pageActionId}
-                  onCheck={checkPageNow}
-                  onDelete={deletePage}
+                  onCheck={canManagePages ? checkPageNow : null}
+                  onDelete={canManagePages ? deletePage : null}
                 />
               )}
             </div>
@@ -1725,7 +2004,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
                   className="primary-button"
                   type="button"
                   onClick={addSelectedDiscoveredPages}
-                  disabled={addingDiscovered || !selectedDiscoveredPages.length}
+                  disabled={!canManagePages || addingDiscovered || !selectedDiscoveredPages.length}
                 >
                   {addingDiscovered ? 'Adding...' : 'Add selected to monitoring'}
                 </button>
@@ -1761,6 +2040,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
               <DiscoveredPagesTable
                 pages={filteredDiscoveredPages}
                 selectedIds={selectedDiscoveredPages}
+                canSelect={canManagePages}
                 onToggle={(pageId) =>
                   setSelectedDiscoveredPages((current) =>
                     current.includes(pageId)
@@ -1777,7 +2057,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
             )}
           </Section>
 
-          <Section title="Snapshot History">
+          <Section title="Change History" meta="Monitoring timeline">
             <SnapshotTable snapshots={site.snapshots || []} />
           </Section>
         </div>
@@ -1818,12 +2098,12 @@ function MonitoredPagesTable({ pages, actionId, onCheck, onDelete }) {
           <tr>
             <th>Label</th>
             <th>URL</th>
-            <th>Last HTTP Status</th>
+            <th>Status</th>
+            <th>HTTP</th>
             <th>Response Time</th>
             <th>Last Check</th>
-            <th>Error</th>
             <th>Error Summary</th>
-            <th>Actions</th>
+            {(onCheck || onDelete) && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
@@ -1842,36 +2122,42 @@ function MonitoredPagesTable({ pages, actionId, onCheck, onDelete }) {
                     {page.url}
                   </a>
                 </td>
+                <td>
+                  <PageStatusBadge check={check} />
+                </td>
                 <td>{check?.httpStatus ?? 'Not checked'}</td>
                 <td>{check?.responseTimeMs !== undefined && check?.responseTimeMs !== null ? `${check.responseTimeMs} ms` : 'Not checked'}</td>
                 <td>
                   <strong className="date-primary">{check ? formatRelativeTime(check.checkedAt) : 'Not checked'}</strong>
                   <span>{check ? formatDate(check.checkedAt) : 'No check yet'}</span>
                 </td>
-                <td>
-                  <PageCheckBadge check={check} />
-                </td>
                 <td>{check?.errorSummary || 'None'}</td>
-                <td>
-                  <div className="row-actions">
-                    <button
-                      className="secondary-button small"
-                      type="button"
-                      onClick={() => onCheck(page.id)}
-                      disabled={isBusy}
-                    >
-                      {isBusy ? 'Working...' : 'Check now'}
-                    </button>
-                    <button
-                      className="danger-button small"
-                      type="button"
-                      onClick={() => onDelete(page.id)}
-                      disabled={isBusy}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
+                {(onCheck || onDelete) && (
+                  <td>
+                    <div className="row-actions">
+                      {onCheck && (
+                        <button
+                          className="secondary-button small"
+                          type="button"
+                          onClick={() => onCheck(page.id)}
+                          disabled={isBusy}
+                        >
+                          {isBusy ? 'Working...' : 'Check now'}
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          className="danger-button small"
+                          type="button"
+                          onClick={() => onDelete(page.id)}
+                          disabled={isBusy}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             )
           })}
@@ -1886,7 +2172,7 @@ function ImportanceBadge({ importance }) {
   return <span className={`importance-badge importance-${normalized}`}>{normalized}</span>
 }
 
-function DiscoveredPagesTable({ pages, selectedIds, onToggle }) {
+function DiscoveredPagesTable({ pages, selectedIds, canSelect, onToggle }) {
   if (!pages.length) {
     return (
       <EmptyState
@@ -1917,7 +2203,7 @@ function DiscoveredPagesTable({ pages, selectedIds, onToggle }) {
                   type="checkbox"
                   checked={selectedIds.includes(page.id)}
                   onChange={() => onToggle(page.id)}
-                  disabled={page.isMonitored}
+                  disabled={!canSelect || page.isMonitored}
                 />
               </td>
               <td>
@@ -1957,6 +2243,9 @@ function DetailItem({ label, value }) {
 }
 
 function PluginTable({ plugins }) {
+  const [filter, setFilter] = useState('risk')
+  const [search, setSearch] = useState('')
+
   if (!plugins.length) {
     return (
       <EmptyState
@@ -1966,9 +2255,48 @@ function PluginTable({ plugins }) {
     )
   }
 
+  const filteredPlugins = plugins
+    .filter((plugin) => {
+      const matchesSearch = `${plugin.name} ${plugin.slug}`.toLowerCase().includes(search.toLowerCase())
+      if (!matchesSearch) return false
+      if (filter === 'active') return plugin.status === 'active'
+      if (filter === 'inactive') return plugin.status === 'inactive'
+      if (filter === 'updates') return plugin.updateAvailable
+      if (filter === 'risk') return plugin.updateAvailable || plugin.status === 'inactive'
+      return true
+    })
+    .sort((a, b) => Number(b.updateAvailable) - Number(a.updateAvailable) || a.name.localeCompare(b.name))
+
   return (
-    <div className="table-wrap">
-      <table>
+    <div className="plugin-panel">
+      <div className="plugin-toolbar">
+        <div className="compact-filter-row">
+          {[
+            ['risk', 'Risky'],
+            ['all', 'All'],
+            ['active', 'Active'],
+            ['inactive', 'Inactive'],
+            ['updates', 'Updates Available'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              className={filter === value ? 'primary-button small' : 'secondary-button small'}
+              type="button"
+              onClick={() => setFilter(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <input
+          className="plugin-search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search plugins"
+        />
+      </div>
+      <div className="table-wrap">
+      <table className="plugin-table">
         <thead>
           <tr>
             <th>Plugin</th>
@@ -1979,7 +2307,7 @@ function PluginTable({ plugins }) {
           </tr>
         </thead>
         <tbody>
-          {plugins.map((plugin) => (
+          {filteredPlugins.map((plugin) => (
             <tr key={plugin.id} className={plugin.updateAvailable ? 'update-row' : ''}>
               <td>
                 <strong>{plugin.name}</strong>
@@ -1999,6 +2327,10 @@ function PluginTable({ plugins }) {
           ))}
         </tbody>
       </table>
+      </div>
+      {!filteredPlugins.length && (
+        <EmptyState title="No plugins match" description="Try another filter or search term." />
+      )}
     </div>
   )
 }
@@ -2035,14 +2367,24 @@ function SnapshotTable({ snapshots }) {
                 <CountBadge value={snapshot.pluginUpdatesCount} />
               </td>
               <td>
-                {[
-                  snapshot.coreUpdateAvailable && 'Core',
-                  snapshot.themeUpdateAvailable && 'Theme',
-                  snapshot.debugMode && 'Debug',
-                  snapshot.fileEditorEnabled && 'File editor',
-                ]
-                  .filter(Boolean)
-                  .join(', ') || 'None'}
+                <div className="badge-row">
+                  {[
+                    snapshot.coreUpdateAvailable && 'Core update',
+                    snapshot.themeUpdateAvailable && 'Theme update',
+                    snapshot.debugMode && 'Debug mode',
+                    snapshot.fileEditorEnabled && 'File editor',
+                  ]
+                    .filter(Boolean)
+                    .map((flag) => (
+                      <span key={flag} className="count-badge attention">{flag}</span>
+                    ))}
+                  {![
+                    snapshot.coreUpdateAvailable,
+                    snapshot.themeUpdateAvailable,
+                    snapshot.debugMode,
+                    snapshot.fileEditorEnabled,
+                  ].some(Boolean) && <span className="count-badge">No flags</span>}
+                </div>
               </td>
             </tr>
           ))}
@@ -2052,7 +2394,7 @@ function SnapshotTable({ snapshots }) {
   )
 }
 
-function ClientsPage({ request, apiBaseUrl, hasToken }) {
+function ClientsPage({ request, apiBaseUrl, hasToken, currentUser }) {
   const [clients, setClients] = useState([])
   const [form, setForm] = useState({
     name: '',
@@ -2066,6 +2408,7 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [creating, setCreating] = useState(false)
+  const canManageClients = ['owner', 'admin'].includes(currentUser?.role)
 
   const loadClients = useCallback(async (force = false) => {
     if (!hasToken) return
@@ -2212,14 +2555,14 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
           ) : (
             <ClientTable
               clients={clients}
-              onEdit={editClient}
-              onArchive={archiveClient}
-              onRestore={restoreClient}
-              onDelete={deleteClient}
+              onEdit={canManageClients ? editClient : null}
+              onArchive={canManageClients ? archiveClient : null}
+              onRestore={canManageClients ? restoreClient : null}
+              onDelete={canManageClients ? deleteClient : null}
             />
           )}
         </Section>
-        <Section title="Create client">
+        {canManageClients && <Section title="Create client">
           <form className="stack-form" onSubmit={createClient}>
             {[
               ['name', 'Client name'],
@@ -2248,7 +2591,7 @@ function ClientsPage({ request, apiBaseUrl, hasToken }) {
               {creating ? 'Creating...' : 'Create Client'}
             </button>
           </form>
-        </Section>
+        </Section>}
       </div>
     </section>
   )
@@ -2273,7 +2616,7 @@ function ClientTable({ clients, onEdit, onArchive, onRestore, onDelete }) {
             <th>Contact</th>
             <th>Email</th>
             <th>Sites</th>
-            <th>Actions</th>
+            {(onEdit || onArchive || onRestore || onDelete) && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
@@ -2294,22 +2637,198 @@ function ClientTable({ clients, onEdit, onArchive, onRestore, onDelete }) {
               <td>
                 <span className="count-badge">{client.sitesCount} sites</span>
               </td>
+              {(onEdit || onArchive || onRestore || onDelete) && (
+                <td>
+                  <div className="row-actions">
+                    {onEdit && <button className="secondary-button small" type="button" onClick={() => onEdit(client)}>Edit</button>}
+                    {client.isArchived
+                      ? onRestore && <button className="secondary-button small" type="button" onClick={() => onRestore(client)}>Restore</button>
+                      : onArchive && <button className="secondary-button small" type="button" onClick={() => onArchive(client)}>Archive</button>}
+                    {onDelete && <button className="danger-button small" type="button" onClick={() => onDelete(client)}>Delete</button>}
+                  </div>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function UsersPage({ request, apiBaseUrl, hasToken }) {
+  const [users, setUsers] = useState([])
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'viewer' })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [creating, setCreating] = useState(false)
+
+  const loadUsers = useCallback(async (force = false) => {
+    if (!hasToken) return
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const data = await requestOnce(
+        cacheKey('users', apiBaseUrl),
+        () => request('/api/admin/users'),
+        force,
+      )
+      writeCache('users', apiBaseUrl, data)
+      setUsers(data.users || [])
+    } catch (err) {
+      setError(err.message)
+      const cached = readCache('users', apiBaseUrl)
+      if (cached?.data?.users) setUsers(cached.data.users)
+    } finally {
+      setLoading(false)
+    }
+  }, [apiBaseUrl, hasToken, request])
+
+  useEffect(() => {
+    loadUsers()
+  }, [loadUsers])
+
+  async function createUser(event) {
+    event.preventDefault()
+    setCreating(true)
+    setError('')
+
+    try {
+      await request('/api/admin/users', {
+        method: 'POST',
+        body: JSON.stringify(form),
+      })
+      setForm({ name: '', email: '', password: '', role: 'viewer' })
+      await loadUsers(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function editUser(user) {
+    const name = window.prompt('Name', user.name)
+    if (name === null) return
+    const role = window.prompt('Role: owner, admin, manager, viewer', user.role)
+    if (role === null) return
+    const isActive = window.confirm('Should this user be active? Click Cancel to deactivate.')
+
+    try {
+      await request(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name, role, isActive }),
+      })
+      await loadUsers(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function resetPassword(user) {
+    const password = window.prompt(`New password for ${user.email}`)
+    if (!password) return
+
+    try {
+      await request(`/api/admin/users/${user.id}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      })
+      setError('Password reset successfully.')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  return (
+    <section className="page">
+      <PageHeader
+        title="Users"
+        description="Manage workspace access for SitePulse team members."
+        action={
+          <button className="secondary-button" type="button" onClick={() => loadUsers(true)}>
+            Refresh
+          </button>
+        }
+      />
+      <ErrorState message={error} />
+      <div className="split-layout">
+        <Section title="Workspace users" meta={loading ? 'Loading...' : `${users.length} users`}>
+          {loading && !users.length ? (
+            <TableSkeleton rows={5} />
+          ) : (
+            <UserTable users={users} onEdit={editUser} onResetPassword={resetPassword} />
+          )}
+        </Section>
+        <Section title="Create user">
+          <form className="stack-form" onSubmit={createUser}>
+            <label>
+              Name
+              <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
+            </label>
+            <label>
+              Email
+              <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
+            </label>
+            <label>
+              Temporary password
+              <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
+            </label>
+            <label>
+              Role
+              <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
+                <option value="viewer">Viewer</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+                <option value="owner">Owner</option>
+              </select>
+            </label>
+            <button className="primary-button" type="submit" disabled={creating}>
+              {creating ? 'Creating...' : 'Create User'}
+            </button>
+          </form>
+        </Section>
+      </div>
+    </section>
+  )
+}
+
+function UserTable({ users, onEdit, onResetPassword }) {
+  if (!users.length) {
+    return <EmptyState title="No users" description="Create your first workspace user." />
+  }
+
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Last login</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((user) => (
+            <tr key={user.id}>
+              <td>
+                <strong>{user.name}</strong>
+                <span>{user.email}</span>
+              </td>
+              <td><span className="count-badge">{user.role}</span></td>
+              <td><span className={user.isActive ? 'status status-healthy' : 'status status-unknown'}>{user.isActive ? 'active' : 'inactive'}</span></td>
+              <td>{formatDate(user.lastLoginAt)}</td>
               <td>
                 <div className="row-actions">
-                  <button className="secondary-button small" type="button" onClick={() => onEdit(client)}>
+                  <button className="secondary-button small" type="button" onClick={() => onEdit(user)}>
                     Edit
                   </button>
-                  {client.isArchived ? (
-                    <button className="secondary-button small" type="button" onClick={() => onRestore(client)}>
-                      Restore
-                    </button>
-                  ) : (
-                    <button className="secondary-button small" type="button" onClick={() => onArchive(client)}>
-                      Archive
-                    </button>
-                  )}
-                  <button className="danger-button small" type="button" onClick={() => onDelete(client)}>
-                    Delete
+                  <button className="secondary-button small" type="button" onClick={() => onResetPassword(user)}>
+                    Reset password
                   </button>
                 </div>
               </td>
@@ -2321,8 +2840,8 @@ function ClientTable({ clients, onEdit, onArchive, onRestore, onDelete }) {
   )
 }
 
-function SettingsPage({ apiBaseUrl, adminToken, onSave, onCheckApi }) {
-  const [form, setForm] = useState({ apiBaseUrl, adminToken })
+function SettingsPage({ apiBaseUrl, currentUser, tenant, onSave, onCheckApi, onLogout }) {
+  const [form, setForm] = useState({ apiBaseUrl })
   const [notice, setNotice] = useState(null)
   const [testing, setTesting] = useState(false)
 
@@ -2346,7 +2865,7 @@ function SettingsPage({ apiBaseUrl, adminToken, onSave, onCheckApi }) {
     <section className="page">
       <PageHeader
         title="Settings"
-        description="Store your API base URL and internal admin token in this browser."
+        description="Manage your local API connection and current SitePulse session."
       />
       <div className="settings-layout">
         <Section title="Connection">
@@ -2360,15 +2879,6 @@ function SettingsPage({ apiBaseUrl, adminToken, onSave, onCheckApi }) {
                 required
               />
             </label>
-            <label>
-              Admin token
-              <input
-                type="password"
-                value={form.adminToken}
-                onChange={(event) => setForm({ ...form, adminToken: event.target.value })}
-                placeholder="x-sitepulse-admin-token"
-              />
-            </label>
             <div className="button-row">
               <button className="primary-button" type="submit">
                 Save Settings
@@ -2380,11 +2890,21 @@ function SettingsPage({ apiBaseUrl, adminToken, onSave, onCheckApi }) {
           </form>
           {notice && <div className={`state-box ${notice.type}-state`}>{notice.message}</div>}
         </Section>
+        <Section title="Current Session">
+          <div className="detail-grid single-column">
+            <DetailItem label="User" value={`${currentUser?.name || 'Unknown'} (${currentUser?.role || 'unknown'})`} />
+            <DetailItem label="Email" value={currentUser?.email || 'Unknown'} />
+            <DetailItem label="Workspace" value={tenant?.name || currentUser?.tenantId || 'Unknown'} />
+          </div>
+          <button className="danger-button top-gap" type="button" onClick={onLogout}>
+            Logout
+          </button>
+        </Section>
         <div className="settings-help">
           <h3>Local browser storage</h3>
           <p>
-            SitePulse keeps the API URL and internal token in localStorage for this MVP. Do not add
-            admin tokens to Vite environment files.
+            SitePulse keeps the API URL and your JWT session in localStorage for this MVP. Change
+            the seeded password before production use.
           </p>
         </div>
       </div>

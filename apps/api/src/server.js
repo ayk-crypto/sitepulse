@@ -3,6 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const prisma = require("./lib/prisma");
 const { sha256 } = require("./lib/hash");
 const {
@@ -14,6 +16,10 @@ const {
 const app = express();
 const PORT = process.env.PORT || 4000;
 const DEFAULT_TENANT_SLUG = process.env.DEFAULT_TENANT_SLUG || "onset-media";
+const JWT_SECRET = process.env.JWT_SECRET || "change-me";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const OWNER_ADMIN_ROLES = ["owner", "admin"];
+const MANAGER_WRITE_ROLES = ["owner", "admin", "manager"];
 
 app.use(cors());
 app.use(express.json());
@@ -34,6 +40,92 @@ app.get("/health", (req, res) => {
   });
 });
 
+app.post(
+  "/api/auth/login",
+  asyncHandler(async (req, res) => {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const email = requireString(body.email, "email").toLowerCase();
+    const password = requireString(body.password, "password");
+    const user = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+      include: {
+        tenant: true,
+      },
+    });
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        error: "Invalid email or password",
+      });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.passwordHash);
+
+    if (!validPassword) {
+      return res.status(401).json({
+        error: "Invalid email or password",
+      });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        lastLoginAt: new Date(),
+      },
+    });
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        tenantId: user.tenantId,
+        role: user.role,
+        email: user.email,
+      },
+      JWT_SECRET,
+      {
+        expiresIn: JWT_EXPIRES_IN,
+      }
+    );
+
+    return res.json({
+      token,
+      user: publicUser({
+        ...updatedUser,
+        tenant: user.tenant,
+      }),
+    });
+  })
+);
+
+app.get(
+  "/api/auth/me",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUnique({
+      where: {
+        id: req.user.id,
+      },
+      include: {
+        tenant: true,
+      },
+    });
+
+    return res.json({
+      user: publicUser(user),
+      tenant: user.tenant,
+    });
+  })
+);
+
+app.post("/api/auth/logout", requireAuth, (req, res) => {
+  return res.json({
+    loggedOut: true,
+  });
+});
+
 function toBoolean(value, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -42,17 +134,84 @@ function toOptionalString(value) {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
-function requireAdminToken(req, res, next) {
-  const adminToken = process.env.ADMIN_API_TOKEN;
-  const providedToken = req.header("x-sitepulse-admin-token");
+async function loadUserFromAuthorizationHeader(req) {
+  const authorization = req.header("authorization") || "";
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
 
-  if (!adminToken || !providedToken || providedToken !== adminToken) {
+  if (!match) {
+    return null;
+  }
+
+  const payload = jwt.verify(match[1], JWT_SECRET);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: payload.userId,
+    },
+    include: {
+      tenant: true,
+    },
+  });
+
+  if (!user || !user.isActive) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    tenantId: user.tenantId,
+    role: user.role,
+    email: user.email,
+    name: user.name,
+    tenant: user.tenant,
+  };
+}
+
+async function requireAuth(req, res, next) {
+  try {
+    const user = await loadUserFromAuthorizationHeader(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Unauthorized",
+      });
+    }
+
+    req.user = user;
+    req.authMode = "jwt";
+    return next();
+  } catch {
     return res.status(401).json({
       error: "Unauthorized",
     });
   }
+}
 
-  return next();
+async function requireAdminToken(req, res, next) {
+  const adminToken = process.env.ADMIN_API_TOKEN;
+  const providedToken = req.header("x-sitepulse-admin-token");
+
+  if (adminToken && providedToken && providedToken === adminToken) {
+    req.authMode = "admin-token";
+    return next();
+  }
+
+  return requireAuth(req, res, next);
+}
+
+function requireRole(roles) {
+  return (req, res, next) => {
+    if (req.authMode === "admin-token") {
+      return next();
+    }
+
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        error: "Forbidden",
+      });
+    }
+
+    return next();
+  };
 }
 
 function requireString(value, fieldName) {
@@ -90,6 +249,36 @@ async function getDefaultTenant() {
       slug: DEFAULT_TENANT_SLUG,
     },
   });
+}
+
+async function getRequestTenant(req) {
+  if (req.user?.tenantId) {
+    const tenant = await prisma.tenant.findUnique({
+      where: {
+        id: req.user.tenantId,
+      },
+    });
+
+    if (tenant) {
+      return tenant;
+    }
+  }
+
+  return getDefaultTenant();
+}
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    tenantId: user.tenantId,
+    isActive: user.isActive,
+    lastLoginAt: user.lastLoginAt,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
 }
 
 function normalizePlugins(plugins) {
@@ -785,10 +974,146 @@ async function syncPageInventory({ site, pages }) {
 }
 
 app.get(
+  "/api/admin/users",
+  requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const users = await prisma.user.findMany({
+      where: {
+        tenantId: tenant.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return res.json({
+      users: users.map(publicUser),
+    });
+  })
+);
+
+app.post(
+  "/api/admin/users",
+  requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const role = toOptionalString(body.role) || "viewer";
+    const allowedRoles = ["owner", "admin", "manager", "viewer"];
+
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({
+        error: "Invalid role",
+      });
+    }
+
+    const password = requireString(body.password, "password");
+    const user = await prisma.user.create({
+      data: {
+        tenantId: tenant.id,
+        name: requireString(body.name, "name"),
+        email: requireString(body.email, "email").toLowerCase(),
+        passwordHash: await bcrypt.hash(password, 12),
+        role,
+        isActive: true,
+      },
+    });
+
+    return res.status(201).json({
+      user: publicUser(user),
+    });
+  })
+);
+
+app.patch(
+  "/api/admin/users/:id",
+  requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const existing = await prisma.user.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "User not found",
+      });
+    }
+
+    const data = {};
+    if (body.name !== undefined) data.name = requireString(body.name, "name");
+    if (body.role !== undefined) {
+      const role = requireString(body.role, "role");
+      if (!["owner", "admin", "manager", "viewer"].includes(role)) {
+        return res.status(400).json({
+          error: "Invalid role",
+        });
+      }
+      data.role = role;
+    }
+    if (body.isActive !== undefined) data.isActive = Boolean(body.isActive);
+
+    const user = await prisma.user.update({
+      where: {
+        id: existing.id,
+      },
+      data,
+    });
+
+    return res.json({
+      user: publicUser(user),
+    });
+  })
+);
+
+app.post(
+  "/api/admin/users/:id/reset-password",
+  requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const existing = await prisma.user.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "User not found",
+      });
+    }
+
+    await prisma.user.update({
+      where: {
+        id: existing.id,
+      },
+      data: {
+        passwordHash: await bcrypt.hash(requireString(body.password, "password"), 12),
+      },
+    });
+
+    return res.json({
+      passwordReset: true,
+    });
+  })
+);
+
+app.get(
   "/api/admin/clients",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const clients = await prisma.client.findMany({
       where: {
         tenantId: tenant.id,
@@ -831,8 +1156,9 @@ app.get(
 app.patch(
   "/api/admin/clients/:id",
   requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const existing = await prisma.client.findFirst({
       where: {
@@ -870,8 +1196,9 @@ app.patch(
 app.post(
   "/api/admin/clients/:id/archive",
   requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const client = await prisma.client.updateMany({
       where: {
         id: req.params.id,
@@ -898,8 +1225,9 @@ app.post(
 app.post(
   "/api/admin/clients/:id/restore",
   requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const client = await prisma.client.updateMany({
       where: {
         id: req.params.id,
@@ -926,8 +1254,9 @@ app.post(
 app.delete(
   "/api/admin/clients/:id",
   requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const client = await prisma.client.findFirst({
       where: {
         id: req.params.id,
@@ -973,9 +1302,10 @@ app.delete(
 app.post(
   "/api/admin/clients",
   requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
   asyncHandler(async (req, res) => {
     const body = req.body && typeof req.body === "object" ? req.body : {};
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
 
     const client = await prisma.client.create({
       data: {
@@ -998,7 +1328,7 @@ app.get(
   "/api/admin/dashboard-summary",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     await refreshStaleSiteStatuses(tenant.id);
     const [totalSites, statusCounts, recentlySyncedSites, unmonitoredImportantPages] = await Promise.all([
       prisma.site.count({
@@ -1090,7 +1420,7 @@ app.get(
   "/api/admin/alerts/summary",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const [openCount, criticalOpenCount, warningOpenCount, resolvedLast24h, latestOpenAlerts] =
       await Promise.all([
@@ -1181,7 +1511,7 @@ app.get(
   "/api/admin/alerts",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const where = {
       tenantId: tenant.id,
       site: {
@@ -1231,7 +1561,7 @@ app.get(
   "/api/admin/alerts/:id",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const alert = await prisma.alert.findFirst({
       where: {
         id: req.params.id,
@@ -1257,24 +1587,32 @@ app.get(
 app.post(
   "/api/admin/alerts/:id/acknowledge",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
-    const alert = await prisma.alert.update({
+    const tenant = await getRequestTenant(req);
+    const existing = await prisma.alert.findFirst({
       where: {
         id: req.params.id,
-      },
-      data: {
-        status: "acknowledged",
-        acknowledgedAt: new Date(),
-        acknowledgedBy: "admin",
+        tenantId: tenant.id,
       },
     });
 
-    if (alert.tenantId !== tenant.id) {
+    if (!existing) {
       return res.status(404).json({
         error: "Alert not found",
       });
     }
+
+    const alert = await prisma.alert.update({
+      where: {
+        id: existing.id,
+      },
+      data: {
+        status: "acknowledged",
+        acknowledgedAt: new Date(),
+        acknowledgedBy: req.user?.email || "admin",
+      },
+    });
 
     return res.json({
       alert,
@@ -1285,23 +1623,31 @@ app.post(
 app.post(
   "/api/admin/alerts/:id/resolve",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
-    const alert = await prisma.alert.update({
+    const tenant = await getRequestTenant(req);
+    const existing = await prisma.alert.findFirst({
       where: {
         id: req.params.id,
+        tenantId: tenant.id,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "Alert not found",
+      });
+    }
+
+    const alert = await prisma.alert.update({
+      where: {
+        id: existing.id,
       },
       data: {
         status: "resolved",
         resolvedAt: new Date(),
       },
     });
-
-    if (alert.tenantId !== tenant.id) {
-      return res.status(404).json({
-        error: "Alert not found",
-      });
-    }
 
     await prisma.finding.updateMany({
       where: {
@@ -1323,26 +1669,34 @@ app.post(
 app.post(
   "/api/admin/alerts/:id/snooze",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const hours = Number(body.hours || 24);
     const snoozedUntil = new Date(Date.now() + Math.max(1, hours) * 60 * 60 * 1000);
-    const alert = await prisma.alert.update({
+    const existing = await prisma.alert.findFirst({
       where: {
         id: req.params.id,
+        tenantId: tenant.id,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "Alert not found",
+      });
+    }
+
+    const alert = await prisma.alert.update({
+      where: {
+        id: existing.id,
       },
       data: {
         status: "snoozed",
         snoozedUntil,
       },
     });
-
-    if (alert.tenantId !== tenant.id) {
-      return res.status(404).json({
-        error: "Alert not found",
-      });
-    }
 
     return res.json({
       alert,
@@ -1354,7 +1708,7 @@ app.get(
   "/api/admin/sites",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     await refreshStaleSiteStatuses(tenant.id);
     const sites = await prisma.site.findMany({
       where: {
@@ -1389,9 +1743,10 @@ app.get(
 app.post(
   "/api/admin/sites",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
     const body = req.body && typeof req.body === "object" ? req.body : {};
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const clientId = requireString(body.clientId, "clientId");
     const siteName = requireString(body.siteName, "siteName");
     const siteUrl = requireString(body.siteUrl, "siteUrl");
@@ -1433,8 +1788,9 @@ app.post(
 app.patch(
   "/api/admin/sites/:id",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const existing = await prisma.site.findFirst({
       where: {
@@ -1496,8 +1852,9 @@ app.patch(
 app.post(
   "/api/admin/sites/:id/archive",
   requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const site = await prisma.site.updateMany({
       where: {
         id: req.params.id,
@@ -1524,8 +1881,9 @@ app.post(
 app.post(
   "/api/admin/sites/:id/restore",
   requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const site = await prisma.site.updateMany({
       where: {
         id: req.params.id,
@@ -1552,8 +1910,9 @@ app.post(
 app.delete(
   "/api/admin/sites/:id",
   requireAdminToken,
+  requireRole(OWNER_ADMIN_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
 
     if (String(req.query.confirm) !== "true") {
       return res.status(400).json({
@@ -1590,7 +1949,7 @@ app.get(
   "/api/admin/sites/:id",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const site = await prisma.site.findFirst({
       where: {
         id: req.params.id,
@@ -1634,7 +1993,7 @@ app.get(
   "/api/admin/sites/:id/discovered-pages",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const site = await prisma.site.findFirst({
       where: {
         id: req.params.id,
@@ -1688,8 +2047,9 @@ app.get(
 app.post(
   "/api/admin/sites/:id/discovered-pages/add-to-monitoring",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const pageInventoryIds = Array.isArray(body.pageInventoryIds)
       ? body.pageInventoryIds.filter((id) => typeof id === "string")
@@ -1766,7 +2126,7 @@ app.post(
   "/api/admin/sites/:id/discover-pages",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const site = await prisma.site.findFirst({
       where: {
         id: req.params.id,
@@ -1809,7 +2169,7 @@ app.get(
   "/api/admin/sites/:id/pages",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const site = await prisma.site.findFirst({
       where: {
         id: req.params.id,
@@ -1859,9 +2219,10 @@ app.get(
 app.post(
   "/api/admin/sites/:id/pages",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
     const body = req.body && typeof req.body === "object" ? req.body : {};
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const site = await prisma.site.findFirst({
       where: {
         id: req.params.id,
@@ -1905,10 +2266,15 @@ app.post(
 app.delete(
   "/api/admin/pages/:pageId",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
-    const page = await prisma.monitoredPage.findUnique({
+    const tenant = await getRequestTenant(req);
+    const page = await prisma.monitoredPage.findFirst({
       where: {
         id: req.params.pageId,
+        site: {
+          tenantId: tenant.id,
+        },
       },
       select: {
         id: true,
@@ -1957,10 +2323,15 @@ app.delete(
 app.post(
   "/api/admin/pages/:pageId/check",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
-    const page = await prisma.monitoredPage.findUnique({
+    const tenant = await getRequestTenant(req);
+    const page = await prisma.monitoredPage.findFirst({
       where: {
         id: req.params.pageId,
+        site: {
+          tenantId: tenant.id,
+        },
       },
       include: {
         site: {
@@ -2000,10 +2371,13 @@ app.post(
 app.post(
   "/api/admin/sites/:id/check-pages",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
-    const site = await prisma.site.findUnique({
+    const tenant = await getRequestTenant(req);
+    const site = await prisma.site.findFirst({
       where: {
         id: req.params.id,
+        tenantId: tenant.id,
       },
       select: {
         id: true,
@@ -2031,7 +2405,7 @@ app.get(
   "/api/admin/scheduler/due",
   requireAdminToken,
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const now = new Date();
     const sites = await prisma.site.findMany({
       where: {
@@ -2091,8 +2465,9 @@ app.get(
 app.post(
   "/api/admin/scheduler/run-page-checks",
   requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
   asyncHandler(async (req, res) => {
-    const tenant = await getDefaultTenant();
+    const tenant = await getRequestTenant(req);
     const now = new Date();
     const sites = await prisma.site.findMany({
       where: {
@@ -2143,10 +2518,12 @@ app.get(
   "/api/admin/page-checks/recent",
   requireAdminToken,
   asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
     const checks = await prisma.pageCheck.findMany({
       where: {
         monitoredPage: {
           site: {
+            tenantId: tenant.id,
             isArchived: false,
           },
         },

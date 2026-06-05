@@ -1,11 +1,44 @@
 # SitePulse API
 
-## Admin onboarding API
+## Login API
 
-Set `ADMIN_API_TOKEN` in `.env`, then pass it with each internal admin request:
+Run the seed script to create the default Onset Media workspace and owner user:
 
 ```bash
-ADMIN_TOKEN="change-me"
+npm run seed
+```
+
+Development login:
+
+```text
+Email: admin@sitepulse.local
+Password: SitePulse@12345
+```
+
+Change this default password before production use. Set `JWT_SECRET` to a strong private value in `.env`; never expose it in frontend code.
+
+Login and use the returned JWT for dashboard requests:
+
+```bash
+curl -X POST http://localhost:4000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@sitepulse.local",
+    "password": "SitePulse@12345"
+  }'
+
+curl http://localhost:4000/api/auth/me \
+  -H "Authorization: Bearer JWT_TOKEN"
+```
+
+The WordPress Agent still uses `x-sitepulse-api-key`. Internal scripts may still use `x-sitepulse-admin-token`.
+
+## Admin onboarding API
+
+For internal scripts, set `ADMIN_API_TOKEN` in `.env`, then pass it with each admin request:
+
+```bash
+ADMIN_API_TOKEN="change-me"
 ```
 
 Create a client:
