@@ -207,6 +207,18 @@ function PulseMark({ size = 'default' }) {
   )
 }
 
+function BrandLogo() {
+  return (
+    <div className="brand-logo">
+      <img src={sitepulseIcon} alt="SitePulse" className="brand-logo-icon" />
+      <div className="brand-logo-text">
+        <span className="brand-logo-name">SitePulse</span>
+        <span className="brand-logo-sub">by Onset Media</span>
+      </div>
+    </div>
+  )
+}
+
 function SitePulseLogo({ className = '' }) {
   return <img className={`sitepulse-logo ${className}`} src={sitepulseLogo} alt="SitePulse by Onset Media" />
 }
@@ -755,11 +767,7 @@ function Sidebar({ activePage, currentUser }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <PulseMark />
-        <div>
-          <div className="brand-name">SitePulse</div>
-          <div className="brand-subtitle">Onset Media</div>
-        </div>
+        <BrandLogo />
       </div>
       <nav className="nav-list" aria-label="Primary navigation">
         {visibleNavItems.map((item) => (
@@ -1160,11 +1168,11 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
 function Metric({ label, value, status, detail, icon = 'sites' }) {
   return (
     <div className={`metric ${status ? `metric-card-${status}` : ''}`}>
-      <span className="metric-icon" aria-hidden="true"><DashboardIcon type={icon} /></span>
-      <div>
+      <div className="metric-header">
         <span className="metric-label">{label}</span>
-        <strong className={status ? `metric-${status}` : ''}>{value}</strong>
+        <span className="metric-icon" aria-hidden="true"><DashboardIcon type={icon} /></span>
       </div>
+      <strong className={status ? `metric-${status}` : ''}>{value}</strong>
       <p>{detail}</p>
     </div>
   )

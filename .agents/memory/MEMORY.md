@@ -1,0 +1,2 @@
+- [Brand logo architecture](brand-logo-arch.md) — `BrandLogo` component is the single source of truth for sidebar/app brand; uses `sitepulseIcon` import only.
+- [Metric card layout](metric-card-layout.md) — cards use `.metric-header` (label + icon row, space-between), then big number, then detail `<p>`; flex-column, never grid.
