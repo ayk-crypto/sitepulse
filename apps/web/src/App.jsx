@@ -1713,7 +1713,6 @@ function SiteTable({
             <th>Status</th>
             <th>Last seen</th>
             <th>Plugin updates</th>
-            {compact && <th>Actions</th>}
             {!compact && (onEdit || onArchive || onRestore || onDelete) && <th>Actions</th>}
           </tr>
         </thead>
@@ -1745,11 +1744,6 @@ function SiteTable({
                 <td>
                   <CountBadge value={site.pluginUpdatesCount} />
                 </td>
-                {compact && (
-                  <td>
-                    <button className="icon-kebab" type="button" aria-label={`${site.siteName} actions`} onClick={(event) => event.stopPropagation()}>...</button>
-                  </td>
-                )}
                 {!compact && (onEdit || onArchive || onRestore || onDelete) && (
                   <td>
                     <div className="row-actions" onClick={(event) => event.stopPropagation()}>
@@ -1806,7 +1800,6 @@ function RecentPageChecksTable({ checks }) {
             <th>Status</th>
             <th>Response</th>
             <th>Checked</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -1828,7 +1821,6 @@ function RecentPageChecksTable({ checks }) {
                 <strong className="date-primary">{formatRelativeTime(check.checkedAt)}</strong>
                 <span>{formatDate(check.checkedAt)}</span>
               </td>
-              <td><button className="icon-kebab" type="button" aria-label="Page check actions">...</button></td>
             </tr>
           ))}
         </tbody>
