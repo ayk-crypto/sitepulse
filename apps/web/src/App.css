@@ -865,20 +865,21 @@
 }
 
 .health-progress {
+  min-width: 0;
+}
+
+.health-progress-track {
   background: #e9eef8;
   border-radius: 999px;
-  display: block;
   height: 8px;
   overflow: hidden;
-  padding: 0;
   position: relative;
   width: 100%;
 }
 
-.health-progress i {
+.health-progress-track i {
   background: linear-gradient(90deg, #2563eb, #7c3aed);
   bottom: 0;
-  display: block;
   left: 0;
   position: absolute;
   top: 0;
@@ -888,8 +889,8 @@
   color: #64748b;
   font-size: 11px;
   font-weight: 700;
+  justify-content: flex-end;
   line-height: 1;
-  text-align: right;
 }
 
 .health-breakdown-list .dashboard-badge {

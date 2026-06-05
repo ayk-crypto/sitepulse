@@ -3343,7 +3343,7 @@ function HealthOverview({ score, summary, pluginUpdateTotal, avgResponse }) {
             <div className="health-breakdown-row" key={label}>
               <span className={`breakdown-icon dashboard-badge-${variant}`}><DashboardIcon type={variant === 'critical' ? 'critical' : variant === 'warning' ? 'warning' : 'healthy'} /></span>
               <strong>{label}</strong>
-              <span className="health-progress"><i style={{ width: `${value}%` }} /></span>
+              <span className="health-progress"><span className="health-progress-track"><i style={{ width: `${value}%` }} /></span></span>
               <span className="health-score-num">{value}</span>
               <DashboardBadge variant={variant === 'healthy' ? 'success' : variant}>{status}</DashboardBadge>
             </div>
