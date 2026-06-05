@@ -3369,15 +3369,13 @@ function RecommendedActions({ actions }) {
             <div className="recommended-action-content">
               <strong>{action.title}</strong>
               <p>{action.description}</p>
-              <div className="recommended-action-footer">
-                {action.site?.siteName && (
-                  <span className="recommended-action-site-tag">{action.site.siteName}</span>
-                )}
-                <button className={ctaClass[action.priority] || 'secondary-button small'} type="button" onClick={() => setRouteHash(action.route)}>
-                  {action.cta}
-                </button>
-              </div>
+              {action.site?.siteName && (
+                <span className="recommended-action-site-tag">{action.site.siteName}</span>
+              )}
             </div>
+            <button className={`${ctaClass[action.priority] || 'secondary-button small'} recommended-action-cta`} type="button" onClick={() => setRouteHash(action.route)}>
+              {action.cta}
+            </button>
           </div>
         ))}
       </div>
