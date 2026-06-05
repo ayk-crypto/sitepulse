@@ -364,6 +364,31 @@ function AlertStatusBadge({ status = 'open' }) {
   return <span className={`alert-status alert-status-${status}`}>{status}</span>
 }
 
+function AlertSeverityIcon({ severity = 'info' }) {
+  const paths = {
+    critical: ['M12 3l7 3v5c0 4.8-3 8.2-7 10-4-1.8-7-5.2-7-10V6z', 'M12 8v5', 'M12 16h.01'],
+    warning: ['M12 4l9.5 16.5H2.5z', 'M12 10v4', 'M12 17h.01'],
+    info: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 11v5', 'M12 8h.01'],
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {(paths[severity] || paths.info).map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  )
+}
+
+const ALERT_SOURCE_LABELS = {
+  wordpress: 'WordPress',
+  'page-monitor': 'Page Monitor',
+  'page-discovery': 'Page Discovery',
+}
+
+function formatAlertSource(source) {
+  return ALERT_SOURCE_LABELS[source] || (source ? source.replace(/-/g, ' ') : 'Unknown')
+}
+
 function getTopIssueReasons(alerts = [], limit = 2) {
   return alerts
     .filter((alert) => ['open', 'acknowledged', 'snoozed'].includes(alert.status))
@@ -1292,8 +1317,63 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
     }
   }
 
+  const setFilter = (patch) => setFilters((prev) => ({ ...prev, ...patch }))
+
+  const bandTiles = [
+    {
+      key: 'open',
+      tone: 'open',
+      label: 'Open',
+      value: summary?.openCount || 0,
+      foot: 'Active alerts',
+      active: filters.status === 'open' && !filters.severity,
+      onClick: () => setFilter({ status: 'open', severity: '' }),
+    },
+    {
+      key: 'critical',
+      tone: 'critical',
+      label: 'Critical',
+      value: summary?.criticalOpenCount || 0,
+      foot: 'High priority',
+      active: filters.status === 'open' && filters.severity === 'critical',
+      onClick: () => setFilter({ status: 'open', severity: 'critical' }),
+    },
+    {
+      key: 'warning',
+      tone: 'warning',
+      label: 'Warning',
+      value: summary?.warningOpenCount || 0,
+      foot: 'Needs review',
+      active: filters.status === 'open' && filters.severity === 'warning',
+      onClick: () => setFilter({ status: 'open', severity: 'warning' }),
+    },
+    {
+      key: 'resolved',
+      tone: 'healthy',
+      label: 'Resolved 24h',
+      value: summary?.resolvedLast24h || 0,
+      foot: 'Last 24 hours',
+      active: filters.status === 'resolved',
+      onClick: () => setFilter({ status: 'resolved', severity: '' }),
+    },
+  ]
+
+  const statusOptions = [
+    ['', 'All'],
+    ['open', 'Open'],
+    ['acknowledged', 'Acknowledged'],
+    ['snoozed', 'Snoozed'],
+    ['resolved', 'Resolved'],
+  ]
+  const severityOptions = [
+    ['', 'All'],
+    ['critical', 'Critical'],
+    ['warning', 'Warning'],
+    ['info', 'Info'],
+  ]
+
   return (
-    <section className="page">
+    <section className="page alerts-page">
       <PageHeader
         title="Alerts"
         description="Review WordPress health, page monitoring, and operational alerts across client sites."
@@ -1304,152 +1384,275 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
         }
       />
       {!hasToken && <EmptyTokenNotice />}
-      <ErrorState message={error} />
-      <div className="metric-grid">
-        <Metric label="Open" value={summary?.openCount || 0} detail="Active alerts" />
-        <Metric label="Critical" value={summary?.criticalOpenCount || 0} status="critical" detail="High priority" />
-        <Metric label="Warning" value={summary?.warningOpenCount || 0} status="warning" detail="Needs review" />
-        <Metric label="Resolved 24h" value={summary?.resolvedLast24h || 0} status="healthy" detail="Recently fixed" />
+      <FeedbackBanner message={error} />
+
+      <div className="alert-band">
+        {bandTiles.map((tile) => (
+          <button
+            key={tile.key}
+            type="button"
+            className={`alert-band-tile tone-${tile.tone}${tile.active ? ' is-active' : ''}`}
+            onClick={tile.onClick}
+          >
+            <span className="alert-band-head">
+              <span className="alert-band-label">{tile.label}</span>
+              <span className="alert-band-dot" />
+            </span>
+            <span className="alert-band-value">{tile.value}</span>
+            <span className="alert-band-foot">{tile.foot}</span>
+          </button>
+        ))}
       </div>
-      <Section title="Alert Filters">
-        <div className="filter-row">
-          <label>
-            Status
-            <select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
-              <option value="">All</option>
-              <option value="open">Open</option>
-              <option value="acknowledged">Acknowledged</option>
-              <option value="snoozed">Snoozed</option>
-              <option value="resolved">Resolved</option>
-            </select>
-          </label>
-          <label>
-            Severity
-            <select value={filters.severity} onChange={(event) => setFilters({ ...filters, severity: event.target.value })}>
-              <option value="">All</option>
-              <option value="critical">Critical</option>
-              <option value="warning">Warning</option>
-              <option value="info">Info</option>
-            </select>
-          </label>
-          <label>
-            Source
-            <select value={filters.source} onChange={(event) => setFilters({ ...filters, source: event.target.value })}>
-              <option value="">All</option>
-              <option value="wordpress">WordPress</option>
-              <option value="page-monitor">Page monitor</option>
-              <option value="page-discovery">Page discovery</option>
-            </select>
-          </label>
+
+      <div className="alert-toolbar">
+        <div className="alert-toolbar-group">
+          <span className="alert-toolbar-label">Status</span>
+          <div className="segmented">
+            {statusOptions.map(([value, label]) => (
+              <button
+                key={value || 'all'}
+                type="button"
+                className={filters.status === value ? 'is-active' : ''}
+                onClick={() => setFilter({ status: value })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-      </Section>
+        <div className="alert-toolbar-group">
+          <span className="alert-toolbar-label">Severity</span>
+          <div className="segmented segmented-severity">
+            {severityOptions.map(([value, label]) => (
+              <button
+                key={value || 'all'}
+                type="button"
+                className={`${filters.severity === value ? 'is-active' : ''}${value ? ` seg-${value}` : ''}`}
+                onClick={() => setFilter({ severity: value })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="alert-toolbar-group alert-source-field">
+          <span className="alert-toolbar-label">Source</span>
+          <select value={filters.source} onChange={(event) => setFilter({ source: event.target.value })}>
+            <option value="">All sources</option>
+            <option value="wordpress">WordPress</option>
+            <option value="page-monitor">Page monitor</option>
+            <option value="page-discovery">Page discovery</option>
+          </select>
+        </label>
+      </div>
+
       <div className="split-layout alerts-layout">
-        <Section title="Alert Center" meta={loading ? 'Loading...' : `${alerts.length} alerts`}>
+        <div className="section-card alert-list-card">
+          <div className="alert-list-head">
+            <h3>Alert Center</h3>
+            <span className="alert-list-count">
+              {loading ? 'Loading…' : `${alerts.length} ${alerts.length === 1 ? 'alert' : 'alerts'}`}
+            </span>
+          </div>
           {loading && !alerts.length ? (
-            <TableSkeleton rows={6} />
+            <AlertListSkeleton />
           ) : (
-            <AlertTable
-              alerts={alerts}
-              actionId={actionId}
-              onSelect={setSelectedAlert}
-              onAction={runAlertAction}
-            />
+            <AlertList alerts={alerts} selectedId={selectedAlert?.id} onSelect={setSelectedAlert} />
           )}
-        </Section>
-      <AlertDetailCard alert={selectedAlert} actionId={actionId} onAction={canActOnAlerts ? runAlertAction : null} />
+        </div>
+        <AlertDetailPanel
+          alert={selectedAlert}
+          actionId={actionId}
+          onAction={canActOnAlerts ? runAlertAction : null}
+          onClose={() => setSelectedAlert(null)}
+        />
       </div>
     </section>
   )
 }
 
-function AlertTable({ alerts, compact = false, onSelect, emptyTitle, emptyDescription }) {
+function FeedbackBanner({ message }) {
+  if (!message) return null
+  const isSuccess = /success/i.test(message)
+  return <div className={`feedback-banner ${isSuccess ? 'is-success' : 'is-error'}`}>{message}</div>
+}
+
+function AlertListSkeleton() {
+  return (
+    <div className="alert-list">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div className="alert-card is-skeleton" key={index}>
+          <span className="alert-card-rail" />
+          <div className="alert-card-body">
+            <span className="skeleton-line wide" />
+            <span className="skeleton-line medium" />
+            <span className="skeleton-line short" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AlertList({ alerts, selectedId, onSelect }) {
   if (!alerts.length) {
     return (
       <EmptyState
-        title={emptyTitle || 'No alerts found'}
-        description={emptyDescription || 'Alerts will appear when SitePulse detects a finding.'}
+        title="No alerts found"
+        description="You're all clear — alerts will appear here when SitePulse detects a finding."
       />
     )
   }
 
   return (
-    <div className="table-wrap">
-      <table className={compact ? 'alerts-table compact-alerts-table' : 'alerts-table'}>
-        <thead>
-          <tr>
-            <th>Severity</th>
-            <th>Title</th>
-            <th>Site</th>
-            {!compact && <th>Source</th>}
-            <th>Last Seen</th>
-            {!compact && <th>Occurrences</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {alerts.map((alert) => (
-            <tr key={alert.id} className={alert.severity === 'critical' ? 'critical-alert-row' : ''}>
-              <td><AlertSeverityBadge severity={alert.severity} /></td>
-              <td>
-                <div className="alert-title-cell">
-                  <div className="alert-title-line">
-                    <button className="link-button" type="button" onClick={() => onSelect?.(alert)}>
-                      {alert.title}
-                    </button>
-                    <AlertStatusBadge status={alert.status} />
-                  </div>
-                  <span>{alert.message || alert.recommendation || 'No details provided'}</span>
-                </div>
-              </td>
-              <td>
-                <strong>{alert.site?.siteName || 'Unknown site'}</strong>
-                <span>{alert.site?.siteUrl ? getDomain(alert.site.siteUrl) : ''}</span>
-              </td>
-              {!compact && <td>{alert.source}</td>}
-              <td>{formatRelativeTime(alert.lastSeenAt)}</td>
-              {!compact && <td>{alert.occurrenceCount}</td>}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="alert-list">
+      {alerts.map((alert) => (
+        <AlertCard key={alert.id} alert={alert} selected={selectedId === alert.id} onSelect={onSelect} />
+      ))}
     </div>
   )
 }
 
-function AlertDetailCard({ alert, actionId, onAction }) {
+function AlertCard({ alert, selected, onSelect }) {
+  const severity = alert.severity || 'info'
   return (
-    <div className="section-card alert-detail-card">
-      <div className="section-title">
-        <h3>Alert Detail</h3>
+    <button
+      type="button"
+      className={`alert-card sev-${severity}${selected ? ' is-selected' : ''}`}
+      onClick={() => onSelect?.(alert)}
+    >
+      <span className="alert-card-rail">
+        <span className="alert-card-sev-icon">
+          <AlertSeverityIcon severity={severity} />
+        </span>
+      </span>
+      <span className="alert-card-body">
+        <span className="alert-card-head">
+          <span className="alert-card-title">{alert.title}</span>
+          <AlertStatusBadge status={alert.status} />
+        </span>
+        <span className="alert-card-msg">
+          {alert.message || alert.recommendation || 'No additional details provided.'}
+        </span>
+        <span className="alert-card-meta">
+          <span className="alert-meta-site">
+            <span className="alert-meta-avatar">{getInitials(alert.site?.siteName || alert.site?.siteUrl || '?')}</span>
+            <span className="alert-meta-site-text">
+              <strong>{alert.site?.siteName || 'Unknown site'}</strong>
+              {alert.site?.siteUrl && <span>{getDomain(alert.site.siteUrl)}</span>}
+            </span>
+          </span>
+          <span className="alert-meta-chips">
+            <span className="alert-meta-chip">{formatAlertSource(alert.source)}</span>
+            <span className="alert-meta-chip">{formatRelativeTime(alert.lastSeenAt)}</span>
+            {alert.occurrenceCount > 1 && (
+              <span className="alert-meta-chip alert-meta-chip-count">{alert.occurrenceCount}×</span>
+            )}
+          </span>
+        </span>
+      </span>
+      <span className="alert-card-chevron" aria-hidden="true">›</span>
+    </button>
+  )
+}
+
+function AlertDetailPanel({ alert, actionId, onAction, onClose }) {
+  if (!alert) {
+    return (
+      <aside className="section-card alert-detail-card alert-incident-empty">
+        <span className="incident-empty-icon">
+          <AlertSeverityIcon severity="info" />
+        </span>
+        <h3>No alert selected</h3>
+        <p>Choose an alert from the list to view its timeline, affected site, and recommended fix.</p>
+      </aside>
+    )
+  }
+
+  const severity = alert.severity || 'info'
+  const tone = severity === 'critical' ? 'critical' : severity === 'warning' ? 'warning' : 'info'
+  const busy = actionId === alert.id
+
+  return (
+    <aside className="section-card alert-detail-card">
+      <div className="incident-head">
+        <span className={`incident-sev dashboard-badge-${tone}`}>
+          <AlertSeverityIcon severity={severity} />
+          {severity}
+        </span>
+        <button type="button" className="incident-close" onClick={onClose} aria-label="Close alert detail">
+          ×
+        </button>
       </div>
-      {!alert ? (
-        <EmptyState title="Select an alert" description="Alert timeline and recommendation details will show here." />
-      ) : (
-        <div className="alert-detail">
-          <AlertSeverityBadge severity={alert.severity} />
-          <h3>{alert.title}</h3>
-          <p>{alert.message || 'No message provided.'}</p>
-          <div className="detail-list">
-            <DetailItem label="Site" value={alert.site?.siteName || 'Unknown'} />
-            <DetailItem label="Status" value={<AlertStatusBadge status={alert.status} />} />
-            <DetailItem label="Source" value={alert.source} />
-            <DetailItem label="First seen" value={formatDate(alert.firstSeenAt)} />
-            <DetailItem label="Last seen" value={formatDate(alert.lastSeenAt)} />
-            <DetailItem label="Occurrences" value={alert.occurrenceCount} />
-          </div>
-          <div className="recommendation-box">
-            <strong>Recommendation</strong>
-            <p>{alert.recommendation || 'No recommendation provided.'}</p>
-          </div>
-          {onAction && (
-            <div className="alert-action-panel">
-              <button className="secondary-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'acknowledge')}>Acknowledge</button>
-              <button className="secondary-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'snooze')}>Snooze 24h</button>
-              <button className="danger-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'resolve')}>Resolve</button>
-            </div>
-          )}
+      <h3 className="incident-title">{alert.title}</h3>
+      <p className="incident-msg">{alert.message || 'No message provided.'}</p>
+
+      <div className="incident-site">
+        <span className="alert-meta-avatar large">{getInitials(alert.site?.siteName || alert.site?.siteUrl || '?')}</span>
+        <div className="incident-site-text">
+          <strong>{alert.site?.siteName || 'Unknown site'}</strong>
+          <span>{alert.site?.siteUrl ? getDomain(alert.site.siteUrl) : 'No URL on record'}</span>
         </div>
+        <AlertStatusBadge status={alert.status} />
+      </div>
+
+      <div className="incident-meta">
+        <div>
+          <span>Source</span>
+          <strong>{formatAlertSource(alert.source)}</strong>
+        </div>
+        <div>
+          <span>Occurrences</span>
+          <strong>{alert.occurrenceCount ?? 1}</strong>
+        </div>
+        <div>
+          <span>First seen</span>
+          <strong>{formatDate(alert.firstSeenAt)}</strong>
+        </div>
+        <div>
+          <span>Last seen</span>
+          <strong>{formatDate(alert.lastSeenAt)}</strong>
+        </div>
+      </div>
+
+      <div className="incident-timeline">
+        <div className="incident-timeline-row">
+          <span className="incident-tl-dot" />
+          <div>
+            <strong>First detected</strong>
+            <span>{formatRelativeTime(alert.firstSeenAt)}</span>
+          </div>
+        </div>
+        <div className="incident-timeline-row">
+          <span className="incident-tl-dot is-latest" />
+          <div>
+            <strong>Most recent</strong>
+            <span>{formatRelativeTime(alert.lastSeenAt)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="incident-reco">
+        <strong>Recommended fix</strong>
+        <p>{alert.recommendation || 'No recommendation provided for this alert.'}</p>
+      </div>
+
+      {onAction ? (
+        <div className="incident-actions">
+          <button className="secondary-button" disabled={busy} onClick={() => onAction(alert.id, 'acknowledge')}>
+            Acknowledge
+          </button>
+          <button className="secondary-button" disabled={busy} onClick={() => onAction(alert.id, 'snooze')}>
+            Snooze 24h
+          </button>
+          <button className="primary-button" disabled={busy} onClick={() => onAction(alert.id, 'resolve')}>
+            Resolve
+          </button>
+        </div>
+      ) : (
+        <p className="incident-noperm">You don't have permission to act on alerts.</p>
       )}
-    </div>
+    </aside>
   )
 }
 
