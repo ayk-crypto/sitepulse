@@ -12,6 +12,11 @@ const {
   resolveMissingAlertsForSite,
   resolveAlertByFingerprint,
 } = require("./services/alertService");
+const {
+  generateSiteReport,
+  generateClientReport,
+  logActivity,
+} = require("./services/reportService");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -448,6 +453,98 @@ function requireHttpUrl(value, fieldName) {
     error.statusCode = 400;
     throw error;
   }
+}
+
+function requireDate(value, fieldName) {
+  const date = new Date(value);
+
+  if (!value || Number.isNaN(date.getTime())) {
+    const error = new Error(`${fieldName} must be a valid date`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return date;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderReportHtml(report) {
+  const summary = report.summary || {};
+  const clientName = summary.client?.name || report.client?.name || "Client";
+  const siteName = summary.site?.siteName || report.site?.siteName || "Multiple sites";
+  const recommendations = summary.recommendations || [];
+  const topAlerts = summary.topAlerts || [];
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(report.title)}</title>
+  <style>
+    body { color: #172033; font-family: Arial, sans-serif; line-height: 1.45; margin: 40px; }
+    header { border-bottom: 2px solid #4055d8; margin-bottom: 28px; padding-bottom: 18px; }
+    h1, h2, h3 { margin: 0 0 10px; }
+    .brand { color: #4055d8; font-weight: 800; text-transform: uppercase; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); margin: 18px 0; }
+    .card { border: 1px solid #dfe7f3; border-radius: 8px; padding: 14px; }
+    .badge { border-radius: 999px; display: inline-block; font-weight: 700; padding: 5px 9px; text-transform: capitalize; }
+    .critical { background: #ffecef; color: #c53445; }
+    .warning { background: #fff4dc; color: #b36b00; }
+    .healthy { background: #e9f8f1; color: #16845f; }
+    table { border-collapse: collapse; margin-top: 8px; width: 100%; }
+    th, td { border-bottom: 1px solid #edf1f7; padding: 8px; text-align: left; }
+    @media print { body { margin: 24px; } .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">SitePulse by Onset Media</div>
+    <h1>${escapeHtml(report.title)}</h1>
+    <p>${escapeHtml(clientName)} · ${escapeHtml(siteName)}</p>
+    <p>${escapeHtml(report.periodStart.toISOString().slice(0, 10))} to ${escapeHtml(report.periodEnd.toISOString().slice(0, 10))}</p>
+  </header>
+  <section>
+    <h2>Executive Summary</h2>
+    <div class="grid">
+      <div class="card"><strong>Status</strong><br><span class="badge ${escapeHtml(summary.overallHealthStatus || "healthy")}">${escapeHtml(summary.overallHealthStatus || "healthy")}</span></div>
+      <div class="card"><strong>Open Alerts</strong><br>${escapeHtml(summary.openAlertsCount || 0)}</div>
+      <div class="card"><strong>Plugin Updates</strong><br>${escapeHtml(summary.pluginUpdateCount || 0)}</div>
+      <div class="card"><strong>Avg Response</strong><br>${summary.averageResponseTime ? `${escapeHtml(summary.averageResponseTime)}ms` : "n/a"}</div>
+    </div>
+  </section>
+  <section>
+    <h2>WordPress Health</h2>
+    <p>WordPress: ${escapeHtml(summary.latestWordPressSnapshot?.wordpressVersion || "No snapshot")} · PHP: ${escapeHtml(summary.latestWordPressSnapshot?.phpVersion || "No snapshot")} · Theme: ${escapeHtml(summary.latestWordPressSnapshot?.activeThemeName || "Unknown")}</p>
+  </section>
+  <section>
+    <h2>Page Monitoring</h2>
+    <p>${escapeHtml(summary.monitoredPagesCount || 0)} monitored pages, ${escapeHtml(summary.pageChecksCount || 0)} checks, ${escapeHtml(summary.pageErrorsCount || 0)} errors.</p>
+  </section>
+  <section>
+    <h2>Alerts Summary</h2>
+    <p>${escapeHtml(summary.criticalAlertsCount || 0)} critical, ${escapeHtml(summary.warningAlertsCount || 0)} warnings, ${escapeHtml(summary.resolvedAlertsCount || 0)} resolved.</p>
+    <table><thead><tr><th>Severity</th><th>Issue</th><th>Recommendation</th></tr></thead><tbody>
+      ${topAlerts.map((alert) => `<tr><td>${escapeHtml(alert.severity)}</td><td>${escapeHtml(alert.title)}</td><td>${escapeHtml(alert.recommendation || "")}</td></tr>`).join("")}
+    </tbody></table>
+  </section>
+  <section>
+    <h2>Recommendations</h2>
+    <ul>${recommendations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+  </section>
+  <section>
+    <h2>Next Steps</h2>
+    <p>Review the recommendations above, prioritize critical items, and continue scheduled monitoring.</p>
+  </section>
+</body>
+</html>`;
 }
 
 function detectPageError(httpStatus, body, failureMessage) {
@@ -972,6 +1069,177 @@ async function syncPageInventory({ site, pages }) {
     newUnmonitored,
   };
 }
+
+app.get(
+  "/api/admin/reports",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const where = {
+      tenantId: tenant.id,
+      status: {
+        not: "archived",
+      },
+    };
+
+    if (req.query.clientId) where.clientId = String(req.query.clientId);
+    if (req.query.siteId) where.siteId = String(req.query.siteId);
+    if (req.query.reportType) where.reportType = String(req.query.reportType);
+
+    const reports = await prisma.report.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        client: { select: { id: true, name: true } },
+        site: { select: { id: true, siteName: true, siteUrl: true } },
+      },
+    });
+
+    return res.json({ reports });
+  })
+);
+
+app.post(
+  "/api/admin/reports/site",
+  requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const report = await generateSiteReport({
+      tenantId: tenant.id,
+      siteId: requireString(body.siteId, "siteId"),
+      periodStart: requireDate(body.periodStart, "periodStart"),
+      periodEnd: requireDate(body.periodEnd, "periodEnd"),
+      title: toOptionalString(body.title),
+      createdBy: req.user,
+    });
+
+    return res.status(201).json({ report });
+  })
+);
+
+app.post(
+  "/api/admin/reports/client",
+  requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const report = await generateClientReport({
+      tenantId: tenant.id,
+      clientId: requireString(body.clientId, "clientId"),
+      periodStart: requireDate(body.periodStart, "periodStart"),
+      periodEnd: requireDate(body.periodEnd, "periodEnd"),
+      title: toOptionalString(body.title),
+      createdBy: req.user,
+    });
+
+    return res.status(201).json({ report });
+  })
+);
+
+app.get(
+  "/api/admin/reports/:id",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const report = await prisma.report.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      include: {
+        client: true,
+        site: true,
+      },
+    });
+
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    await logActivity({
+      tenantId: tenant.id,
+      user: req.user,
+      action: "report.viewed",
+      entityType: "report",
+      entityId: report.id,
+      message: `Viewed report: ${report.title}`,
+    });
+
+    return res.json({ report });
+  })
+);
+
+app.get(
+  "/api/admin/reports/:id/html",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const report = await prisma.report.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+      include: {
+        client: true,
+        site: true,
+      },
+    });
+
+    if (!report) {
+      return res.status(404).send("Report not found");
+    }
+
+    await logActivity({
+      tenantId: tenant.id,
+      user: req.user,
+      action: "report.exported",
+      entityType: "report",
+      entityId: report.id,
+      message: `Exported report HTML: ${report.title}`,
+    });
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.send(renderReportHtml(report));
+  })
+);
+
+app.delete(
+  "/api/admin/reports/:id",
+  requireAdminToken,
+  requireRole(MANAGER_WRITE_ROLES),
+  asyncHandler(async (req, res) => {
+    const tenant = await getRequestTenant(req);
+    const report = await prisma.report.findFirst({
+      where: {
+        id: req.params.id,
+        tenantId: tenant.id,
+      },
+    });
+
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    const archivedReport = await prisma.report.update({
+      where: { id: report.id },
+      data: { status: "archived" },
+    });
+
+    await logActivity({
+      tenantId: tenant.id,
+      user: req.user,
+      action: "report.archived",
+      entityType: "report",
+      entityId: report.id,
+      message: `Archived report: ${report.title}`,
+    });
+
+    return res.json({ report: archivedReport, archived: true });
+  })
+);
 
 app.get(
   "/api/admin/users",

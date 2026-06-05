@@ -15,6 +15,7 @@ const navItems = [
   { id: 'alerts', label: 'Alerts' },
   { id: 'sites', label: 'Sites' },
   { id: 'clients', label: 'Clients' },
+  { id: 'reports', label: 'Reports' },
   { id: 'users', label: 'Users', roles: ['owner', 'admin'] },
   { id: 'settings', label: 'Settings' },
 ]
@@ -26,6 +27,25 @@ function getInitialRoute() {
 
 function setRouteHash(route) {
   window.location.hash = `/${route}`
+}
+
+function getRouteQuery(route) {
+  const [, query = ''] = route.split('?')
+  return new URLSearchParams(query)
+}
+
+function dateInputValue(date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function currentMonthRange() {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return {
+    start: dateInputValue(start),
+    end: dateInputValue(end),
+  }
 }
 
 function cacheKey(name, apiBaseUrl) {
@@ -357,8 +377,17 @@ function App() {
     loadMe()
   }, [loadMe])
 
-  const activePage = route.startsWith('sites/') ? 'site-detail' : route
-  const sidebarPage = activePage === 'site-detail' ? 'sites' : activePage
+  const routePath = route.split('?')[0]
+  const activePage = routePath.startsWith('sites/')
+    ? 'site-detail'
+    : routePath.startsWith('reports/')
+      ? 'report-detail'
+      : routePath
+  const sidebarPage = activePage === 'site-detail'
+    ? 'sites'
+    : activePage === 'report-detail'
+      ? 'reports'
+      : activePage
   const isLoginRoute = route === 'login'
   const isAuthenticated = !!authToken && !!currentUser
 
@@ -409,6 +438,17 @@ function App() {
         )}
         {activePage === 'clients' && (
           <ClientsPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!authToken} currentUser={currentUser} />
+        )}
+        {activePage === 'reports' && (
+          <ReportsPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!authToken} currentUser={currentUser} />
+        )}
+        {activePage === 'report-detail' && (
+          <ReportDetailPage
+            reportId={route.split('/')[1]}
+            request={request}
+            apiBaseUrl={apiBaseUrl}
+            currentUser={currentUser}
+          />
         )}
         {activePage === 'users' && ['owner', 'admin'].includes(currentUser.role) && (
           <UsersPage request={request} apiBaseUrl={apiBaseUrl} hasToken={!!authToken} />
@@ -1898,6 +1938,9 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken, currentUser }) 
                 <button className="secondary-button" type="button" onClick={() => setRouteHash('alerts')}>
                   View Fix Guide
                 </button>
+                <button className="secondary-button" type="button" onClick={() => setRouteHash(`reports?siteId=${site.id}`)}>
+                  Generate Report
+                </button>
                 <button className="primary-button" type="button" onClick={() => loadSite(true)}>
                   Refresh
                 </button>
@@ -2652,6 +2695,398 @@ function ClientTable({ clients, onEdit, onArchive, onRestore, onDelete }) {
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+function ReportsPage({ request, apiBaseUrl, hasToken, currentUser }) {
+  const routeQuery = getRouteQuery(getInitialRoute())
+  const monthRange = currentMonthRange()
+  const [reports, setReports] = useState([])
+  const [clients, setClients] = useState([])
+  const [sites, setSites] = useState([])
+  const [form, setForm] = useState({
+    scope: 'site',
+    clientId: routeQuery.get('clientId') || '',
+    siteId: routeQuery.get('siteId') || '',
+    periodStart: monthRange.start,
+    periodEnd: monthRange.end,
+    title: '',
+  })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const canGenerate = ['owner', 'admin', 'manager'].includes(currentUser?.role)
+
+  const loadReports = useCallback(async (force = false) => {
+    if (!hasToken) return
+    setLoading(true)
+    setError('')
+
+    try {
+      const [reportsData, clientsData, sitesData] = await Promise.all([
+        requestOnce(cacheKey('reports', apiBaseUrl), () => request('/api/admin/reports'), force),
+        requestOnce(cacheKey('clients', apiBaseUrl), () => request('/api/admin/clients'), force),
+        requestOnce(cacheKey('sites', apiBaseUrl), () => request('/api/admin/sites'), force),
+      ])
+      writeCache('reports', apiBaseUrl, reportsData)
+      setReports(reportsData.reports || [])
+      setClients(clientsData.clients || [])
+      setSites(sitesData.sites || [])
+    } catch (err) {
+      setError(err.message)
+      const cached = readCache('reports', apiBaseUrl)
+      if (cached?.data?.reports) setReports(cached.data.reports)
+    } finally {
+      setLoading(false)
+    }
+  }, [apiBaseUrl, hasToken, request])
+
+  useEffect(() => {
+    loadReports()
+  }, [loadReports])
+
+  async function generateReport(event) {
+    event.preventDefault()
+    setGenerating(true)
+    setError('')
+
+    try {
+      const endpoint = form.scope === 'client' ? '/api/admin/reports/client' : '/api/admin/reports/site'
+      const data = await request(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({
+          periodStart: form.periodStart,
+          periodEnd: form.periodEnd,
+          title: form.title,
+          ...(form.scope === 'client' ? { clientId: form.clientId } : { siteId: form.siteId }),
+        }),
+      })
+      await loadReports(true)
+      setRouteHash(`reports/${data.report.id}`)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function archiveReport(report) {
+    if (!window.confirm(`Archive ${report.title}?`)) return
+    try {
+      await request(`/api/admin/reports/${report.id}`, { method: 'DELETE' })
+      await loadReports(true)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const now = new Date()
+  const reportsThisMonth = reports.filter((report) => {
+    const created = new Date(report.createdAt)
+    return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear()
+  }).length
+  const criticalReported = reports.filter((report) => report.summary?.overallHealthStatus === 'critical').length
+
+  return (
+    <section className="page">
+      <PageHeader
+        title="Reports"
+        description="Generate client-facing website health reports for agency reviews."
+        action={<button className="secondary-button" type="button" onClick={() => loadReports(true)}>Refresh</button>}
+      />
+      <ErrorState message={error} />
+      <div className="metric-grid report-metric-grid">
+        <Metric label="Total reports" value={reports.length} detail="Generated reports" />
+        <Metric label="This month" value={reportsThisMonth} detail="Created this month" />
+        <Metric label="Critical sites reported" value={criticalReported} status={criticalReported ? 'critical' : 'healthy'} detail="Reports with critical status" />
+      </div>
+      <div className="split-layout">
+        <Section title="Reports" meta={loading ? 'Loading...' : `${reports.length} reports`}>
+          {loading && !reports.length ? (
+            <TableSkeleton rows={5} />
+          ) : (
+            <ReportsTable reports={reports} canArchive={canGenerate} onArchive={archiveReport} />
+          )}
+        </Section>
+        {canGenerate && (
+          <Section title="Generate Report">
+            <form className="stack-form" onSubmit={generateReport}>
+              <label>
+                Report scope
+                <select value={form.scope} onChange={(event) => setForm({ ...form, scope: event.target.value })}>
+                  <option value="site">Site</option>
+                  <option value="client">Client</option>
+                </select>
+              </label>
+              {form.scope === 'client' ? (
+                <label>
+                  Client
+                  <select value={form.clientId} onChange={(event) => setForm({ ...form, clientId: event.target.value })} required>
+                    <option value="">Select client</option>
+                    {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <label>
+                  Site
+                  <select value={form.siteId} onChange={(event) => setForm({ ...form, siteId: event.target.value })} required>
+                    <option value="">Select site</option>
+                    {sites.map((site) => <option key={site.id} value={site.id}>{site.siteName}</option>)}
+                  </select>
+                </label>
+              )}
+              <label>
+                Period start
+                <input type="date" value={form.periodStart} onChange={(event) => setForm({ ...form, periodStart: event.target.value })} required />
+              </label>
+              <label>
+                Period end
+                <input type="date" value={form.periodEnd} onChange={(event) => setForm({ ...form, periodEnd: event.target.value })} required />
+              </label>
+              <label>
+                Title
+                <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="June Website Health Report" />
+              </label>
+              <button className="primary-button" type="submit" disabled={generating}>
+                {generating ? 'Generating...' : 'Generate Report'}
+              </button>
+            </form>
+          </Section>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ReportsTable({ reports, canArchive, onArchive }) {
+  if (!reports.length) {
+    return <EmptyState title="No reports yet" description="Generate your first client-facing report." />
+  }
+
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Client / Site</th>
+            <th>Period</th>
+            <th>Created by</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {reports.map((report) => (
+            <tr key={report.id}>
+              <td>
+                <strong>{report.title}</strong>
+                <span>{report.status}</span>
+              </td>
+              <td><span className="count-badge">{report.reportType}</span></td>
+              <td>
+                <strong>{report.client?.name || report.summary?.client?.name || 'No client'}</strong>
+                <span>{report.site?.siteName || report.summary?.site?.siteName || 'Client-wide'}</span>
+              </td>
+              <td>{formatDate(report.periodStart)} to {formatDate(report.periodEnd)}</td>
+              <td>{report.createdByName || 'System'}</td>
+              <td>{formatDate(report.createdAt)}</td>
+              <td>
+                <div className="row-actions">
+                  <button className="secondary-button small" type="button" onClick={() => setRouteHash(`reports/${report.id}`)}>View</button>
+                  {canArchive && <button className="danger-button small" type="button" onClick={() => onArchive(report)}>Archive</button>}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ReportDetailPage({ reportId, request, apiBaseUrl, currentUser }) {
+  const [report, setReport] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const loadReport = useCallback(async () => {
+    if (!reportId) return
+    setLoading(true)
+    setError('')
+
+    try {
+      const data = await request(`/api/admin/reports/${reportId}`)
+      setReport(data.report)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [reportId, request])
+
+  useEffect(() => {
+    loadReport()
+  }, [loadReport])
+
+  if (loading && !report) {
+    return (
+      <section className="page">
+        <DetailSkeleton />
+      </section>
+    )
+  }
+
+  const summary = report?.summary || {}
+  const canArchive = ['owner', 'admin', 'manager'].includes(currentUser?.role)
+
+  async function archiveReport() {
+    if (!window.confirm(`Archive ${report.title}?`)) return
+    try {
+      await request(`/api/admin/reports/${report.id}`, { method: 'DELETE' })
+      setRouteHash('reports')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function openPrintableHtml() {
+    try {
+      const response = await fetch(`${normalizeUrl(apiBaseUrl)}/api/admin/reports/${report.id}/html`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || ''}`,
+        },
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status} from report HTML export`)
+      const html = await response.text()
+      const blob = new Blob([html], { type: 'text/html' })
+      window.open(URL.createObjectURL(blob), '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  return (
+    <section className="page">
+      <button className="text-button" type="button" onClick={() => setRouteHash('reports')}>
+        Back to reports
+      </button>
+      <ErrorState message={error} />
+      {report && (
+        <div className="report-detail">
+          <section className="report-cover">
+            <div>
+              <p className="eyebrow">SitePulse by Onset Media</p>
+              <h2>{report.title}</h2>
+              <p>{summary.client?.name || report.client?.name || 'Client'} · {summary.site?.siteName || report.site?.siteName || 'Client-wide report'}</p>
+              <p>{formatDate(report.periodStart)} to {formatDate(report.periodEnd)}</p>
+            </div>
+            <div className="header-actions no-print">
+              <button className="secondary-button" type="button" onClick={() => window.print()}>
+                Print / Save as PDF
+              </button>
+              <button className="secondary-button" type="button" onClick={openPrintableHtml}>
+                Printable HTML
+              </button>
+              {canArchive && <button className="danger-button" type="button" onClick={archiveReport}>Archive</button>}
+            </div>
+          </section>
+
+          <div className="health-overview-grid">
+            <HealthOverviewCard label="Overall health" value={summary.overallHealthStatus || 'unknown'} detail="Report status" status={summary.overallHealthStatus} />
+            <HealthOverviewCard label="Open alerts" value={summary.openAlertsCount || 0} detail={`${summary.criticalAlertsCount || 0} critical`} status={summary.criticalAlertsCount ? 'critical' : summary.openAlertsCount ? 'warning' : 'healthy'} />
+            <HealthOverviewCard label="Plugin updates" value={summary.pluginUpdateCount || 0} detail="Maintenance pressure" status={summary.pluginUpdateCount ? 'warning' : 'healthy'} />
+            <HealthOverviewCard label="Page errors" value={summary.pageErrorsCount || 0} detail={`${summary.pageChecksCount || 0} checks`} status={summary.pageErrorsCount ? 'critical' : 'healthy'} />
+            <HealthOverviewCard label="Avg response" value={summary.averageResponseTime ? `${summary.averageResponseTime}ms` : 'n/a'} detail="Monitored pages" status={summary.averageResponseTime > 5000 ? 'critical' : summary.averageResponseTime > 2000 ? 'warning' : 'healthy'} />
+          </div>
+
+          <Section title="Executive Summary">
+            <p className="report-copy">
+              This report summarizes website health, WordPress maintenance, monitored page performance,
+              alert activity, and recommended next steps for the selected reporting period.
+            </p>
+          </Section>
+
+          <Section title="WordPress Health">
+            <div className="environment-grid">
+              <EnvironmentCard label="WordPress" value={summary.latestWordPressSnapshot?.wordpressVersion || 'No snapshot'} />
+              <EnvironmentCard label="PHP" value={summary.latestWordPressSnapshot?.phpVersion || 'No snapshot'} />
+              <EnvironmentCard label="Theme" value={summary.latestWordPressSnapshot?.activeThemeName || 'Unknown'} />
+              <EnvironmentCard label="Core update" value={summary.coreUpdateAvailable ? 'Available' : 'Not reported'} status={summary.coreUpdateAvailable ? 'warning' : 'healthy'} />
+              <EnvironmentCard label="Debug mode" value={summary.debugMode ? 'Enabled' : 'Disabled'} status={summary.debugMode ? 'critical' : 'healthy'} />
+              <EnvironmentCard label="File editor" value={summary.fileEditorEnabled ? 'Enabled' : 'Disabled'} status={summary.fileEditorEnabled ? 'warning' : 'healthy'} />
+            </div>
+          </Section>
+
+          <Section title="Page Monitoring Summary">
+            <div className="detail-grid">
+              <DetailItem label="Monitored pages" value={summary.monitoredPagesCount || 0} />
+              <DetailItem label="Page checks" value={summary.pageChecksCount || 0} />
+              <DetailItem label="Page errors" value={summary.pageErrorsCount || 0} />
+            </div>
+          </Section>
+
+          <Section title="Alerts Summary">
+            <div className="detail-grid">
+              <DetailItem label="Open alerts" value={summary.openAlertsCount || 0} />
+              <DetailItem label="Critical" value={summary.criticalAlertsCount || 0} />
+              <DetailItem label="Warnings" value={summary.warningAlertsCount || 0} />
+              <DetailItem label="Resolved" value={summary.resolvedAlertsCount || 0} />
+            </div>
+            <ReportAlertsList alerts={summary.topAlerts || []} />
+          </Section>
+
+          <Section title="Activity Summary">
+            <p className="report-copy">{summary.activityCount || 0} key activities recorded during this period.</p>
+            <ul className="report-list">
+              {(summary.keyActivities || []).map((activity) => (
+                <li key={activity.id}>{activity.message || activity.action} <span>{formatDate(activity.createdAt)}</span></li>
+              ))}
+            </ul>
+          </Section>
+
+          <Section title="Recommendations">
+            <ul className="report-list">
+              {(summary.recommendations || []).map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
+            </ul>
+          </Section>
+
+          <Section title="Next Steps">
+            <p className="report-copy">
+              Prioritize critical items first, schedule safe update windows, and keep high-value pages under monitoring.
+            </p>
+          </Section>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ReportAlertsList({ alerts }) {
+  if (!alerts.length) return <EmptyState title="No report alerts" description="No priority alerts were included in this report." />
+
+  return (
+    <div className="priority-issue-list top-gap">
+      {alerts.map((alert) => (
+        <article key={alert.id} className={`priority-issue priority-${alert.severity}`}>
+          <div className="priority-issue-main">
+            <AlertSeverityBadge severity={alert.severity} />
+            <div>
+              <h4>{alert.title}</h4>
+              <p>{alert.message || 'No alert message provided.'}</p>
+            </div>
+          </div>
+          <div className="priority-issue-advice">
+            <span>Recommended action</span>
+            <strong>{alert.recommendation || 'Review and resolve this item.'}</strong>
+          </div>
+          <div className="priority-issue-meta">
+            <span>{formatRelativeTime(alert.lastSeenAt)}</span>
+          </div>
+        </article>
+      ))}
     </div>
   )
 }
