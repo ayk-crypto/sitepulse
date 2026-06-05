@@ -148,9 +148,12 @@
 
 .nav-list {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
   gap: 2px;
+}
+
+.sidebar-spacer {
+  flex: 1 1 auto;
 }
 
 .sidebar-nav-label {
@@ -214,15 +217,9 @@
   color: #ffffff;
 }
 
-.sidebar-bottom {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: auto;
-  padding-top: 20px;
-}
-
 .sidebar-add-site {
+  margin-top: 8px;
+
   align-items: center;
   background: linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(99, 102, 241, 0.14));
   border: 1px solid rgba(99, 149, 255, 0.28);
@@ -426,21 +423,27 @@
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .page-header h2 {
-  font-size: 26px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1.1;
 }
 
 .page-header p {
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.55;
-  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 4px 0 0;
   max-width: 780px;
+}
+
+.page-header:only-child,
+.page-header > *:only-child {
+  width: 100%;
+  justify-content: flex-end;
 }
 
 .header-actions {
@@ -601,7 +604,7 @@
 }
 
 .dashboard-page .table-wrap {
-  overflow-x: visible;
+  overflow-x: auto;
 }
 
 .dashboard-page table {
@@ -760,26 +763,43 @@
   text-transform: uppercase;
 }
 
-.progress-ring {
-  --ring-color: var(--blue);
+.progress-ring-wrap {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.progress-ring-svg {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.progress-ring-inner {
   align-items: center;
-  background: conic-gradient(var(--ring-color) var(--score), #e9eef8 0);
-  border-radius: 999px;
-  display: grid;
-  height: 116px;
-  place-items: center;
-  width: 116px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
-.progress-ring > div {
-  background: #ffffff;
-  border-radius: 999px;
-  display: grid;
-  height: 84px;
-  place-items: center;
-  width: 84px;
+.progress-ring-inner strong {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
 }
 
+.progress-ring-inner span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Legacy compat — keep a placeholder so old selectors don't error */
 .progress-ring strong {
   color: var(--text);
   font-size: 27px;
@@ -797,29 +817,25 @@
   --ring-color: var(--blue);
 }
 
-.progress-ring-warning {
-  --ring-color: var(--amber);
-}
-
-.progress-ring-critical {
-  --ring-color: var(--red);
-}
-
 .health-breakdown-list {
   display: grid;
+  grid-template-columns: 20px 1fr 88px 80px 40px;
+  column-gap: 10px;
 }
 
 .health-breakdown-row {
+  display: contents;
+}
+
+.health-breakdown-row > * {
   align-items: center;
   border-bottom: 1px solid #edf1f7;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 22px minmax(130px, 1fr) minmax(80px, 0.7fr) auto 52px;
+  display: flex;
   padding: 7px 0;
 }
 
-.health-breakdown-row:last-child {
-  border-bottom: 0;
+.health-breakdown-row:last-child > * {
+  border-bottom: none;
 }
 
 .health-breakdown-row strong,
@@ -831,11 +847,13 @@
 }
 
 .health-progress {
+  align-items: stretch;
   background: #edf2f7;
   border-radius: 999px;
-  display: block;
   height: 7px;
+  max-height: 7px;
   overflow: hidden;
+  width: 100%;
 }
 
 .health-progress i {
@@ -843,6 +861,7 @@
   border-radius: inherit;
   display: block;
   height: 100%;
+  min-height: 7px;
 }
 
 .health-breakdown-row > span:last-child {
@@ -991,18 +1010,8 @@
   text-transform: uppercase;
 }
 
-.coverage-card-body .progress-ring {
-  height: 100px;
-  width: 100px;
-}
-
-.coverage-card-body .progress-ring > div {
-  height: 72px;
-  width: 72px;
-}
-
-.coverage-card-body .progress-ring strong {
-  font-size: 22px;
+.coverage-card-body .progress-ring-inner strong {
+  font-size: 19px;
 }
 
 .dashboard-list {
@@ -1099,20 +1108,31 @@
   color: #1663b8;
 }
 
+.activity-title {
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.activity-title strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.activity-title span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .activity-item time {
   color: var(--muted);
-  font-size: 12px;
-  grid-column: 2;
-  white-space: nowrap;
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
 }
 
 .activity-item > div {
   min-width: 0;
-}
-
-.activity-item strong,
-.activity-item span {
-  overflow-wrap: anywhere;
 }
 
 .metric-healthy {

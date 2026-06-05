@@ -266,7 +266,7 @@ function NavIcon({ id }) {
     clients: ['M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M2 21a6 6 0 0 1 12 0', 'M17 11a3 3 0 1 0 0-6', 'M15 21a5 5 0 0 1 7 0'],
     reports: ['M4 20V10', 'M10 20V4', 'M16 20v-7', 'M22 20H2'],
     users: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4 21a8 8 0 0 1 16 0'],
-    settings: ['M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z', 'M19.4 15a1.8 1.8 0 0 0 .4 2l.1.1-2 3.4-.2-.1a1.8 1.8 0 0 0-2.1.1l-.3.2a1.8 1.8 0 0 0-.8 1.9V23h-4v-.4a1.8 1.8 0 0 0-.8-1.9l-.3-.2a1.8 1.8 0 0 0-2.1-.1l-.2.1-2-3.4.1-.1a1.8 1.8 0 0 0 .4-2l-.1-.4a1.8 1.8 0 0 0-1.6-1.1H3v-4h.3a1.8 1.8 0 0 0 1.6-1.1l.1-.4a1.8 1.8 0 0 0-.4-2l-.1-.1 2-3.4.2.1a1.8 1.8 0 0 0 2.1-.1l.3-.2A1.8 1.8 0 0 0 10 1.4V1h4v.4a1.8 1.8 0 0 0 .8 1.9l.3.2a1.8 1.8 0 0 0 2.1.1l.2-.1 2 3.4-.1.1a1.8 1.8 0 0 0-.4 2l.1.4a1.8 1.8 0 0 0 1.6 1.1h.3v4h-.3a1.8 1.8 0 0 0-1.6 1.1Z'],
+    settings: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'],
   }
   return (
     <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -785,26 +785,25 @@ function Sidebar({ activePage, currentUser }) {
           </button>
         ))}
       </nav>
-      <div className="sidebar-bottom">
-        <button className="sidebar-add-site" type="button" onClick={() => setRouteHash('sites')}>
-          <span className="sidebar-add-icon">
-            <svg viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-          </span>
-          <div>
-            <strong>Add New Site</strong>
-            <small>Monitor a WordPress site</small>
-          </div>
-        </button>
-        <div className="sidebar-user">
-          <span className="sidebar-avatar">{getInitials(currentUser?.name)}</span>
-          <div className="sidebar-user-info">
-            <strong>{currentUser?.name}</strong>
-            <span>{currentUser?.email || currentUser?.role}</span>
-          </div>
-          <span className="sidebar-role-badge">{currentUser?.role || 'user'}</span>
+      <button className="sidebar-add-site" type="button" onClick={() => setRouteHash('sites')}>
+        <span className="sidebar-add-icon">
+          <svg viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
+        </span>
+        <div>
+          <strong>Add New Site</strong>
+          <small>Monitor a WordPress site</small>
         </div>
+      </button>
+      <div className="sidebar-spacer" />
+      <div className="sidebar-user">
+        <span className="sidebar-avatar">{getInitials(currentUser?.name)}</span>
+        <div className="sidebar-user-info">
+          <strong>{currentUser?.name}</strong>
+          <span>{currentUser?.email || currentUser?.role}</span>
+        </div>
+        <span className="sidebar-role-badge">{currentUser?.role || 'user'}</span>
       </div>
     </aside>
   )
@@ -855,12 +854,15 @@ function TopBar({ apiBaseUrl, apiStatus, currentUser, onRefresh, onLogout, activ
 }
 
 function PageHeader({ title, description, action }) {
+  const hasText = title || description
   return (
     <div className="page-header">
-      <div>
-        <h2>{title}</h2>
-        <p>{description}</p>
-      </div>
+      {hasText && (
+        <div>
+          {title && <h2>{title}</h2>}
+          {description && <p>{description}</p>}
+        </div>
+      )}
       {action}
     </div>
   )
@@ -1110,8 +1112,6 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
   return (
     <section className="page dashboard-page">
       <PageHeader
-        title="Dashboard"
-        description="Monitor connected WordPress sites, update pressure, and sync freshness."
         action={
           <div className="header-actions">
             <RefreshMeta refreshedAt={lastRefreshed} refreshing={refreshing} />
@@ -3292,11 +3292,25 @@ function buildRecentActivity({ recentSites, recentChecks, latestAlerts }) {
     .slice(0, 4)
 }
 
-function ProgressRing({ value, label, status = 'healthy' }) {
+function ProgressRing({ value, label, status = 'healthy', size = 96 }) {
   const normalized = Math.max(0, Math.min(100, Number(value) || 0))
+  const r = (size / 2) - 7
+  const cx = size / 2
+  const circumference = 2 * Math.PI * r
+  const offset = circumference * (1 - normalized / 100)
+  const color = { healthy: '#2563eb', warning: '#d97706', critical: '#dc2626' }[status] || '#2563eb'
   return (
-    <div className={`progress-ring progress-ring-${status}`} style={{ '--score': `${normalized}%` }}>
-      <div>
+    <div className="progress-ring-wrap" style={{ width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} className="progress-ring-svg" aria-hidden="true">
+        <circle cx={cx} cy={cx} r={r} fill="none" stroke="#e9eef8" strokeWidth="7" />
+        <circle cx={cx} cy={cx} r={r} fill="none" stroke={color} strokeWidth="7"
+          strokeLinecap="round"
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${cx} ${cx})`}
+        />
+      </svg>
+      <div className="progress-ring-inner">
         <strong>{normalized}</strong>
         <span>{label}</span>
       </div>
@@ -3431,10 +3445,12 @@ function RecentActivity({ items }) {
             <div className="activity-item" key={`${item.title}-${index}`}>
               <span className={`activity-icon activity-icon-${item.type}`}><DashboardIcon type={item.type === 'monitor' ? 'sites' : item.type} /></span>
               <div>
-                <strong>{item.title}</strong>
-                {item.meta && <span>{item.meta}</span>}
+                <p className="activity-title">
+                  <strong>{item.title}</strong>
+                  {item.meta && <> · <span>{item.meta}</span></>}
+                </p>
+                <time>{formatRelativeTime(item.time)}</time>
               </div>
-              <time>{formatRelativeTime(item.time)}</time>
             </div>
           ))}
         </div>
