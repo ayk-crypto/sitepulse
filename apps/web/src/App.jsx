@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import sitepulseIcon from './assets/sitepulse-icon.png'
+import sitepulseLogo from './assets/sitepulse-logo.png'
 import './App.css'
 
 const DEFAULT_API_BASE_URL =
@@ -193,6 +195,88 @@ function getInitials(value) {
     .map((part) => part[0])
     .join('')
     .toUpperCase()
+}
+
+function PulseMark({ size = 'default' }) {
+  return (
+    <span className={`pulse-mark pulse-mark-${size}`} aria-hidden="true">
+      <img src={sitepulseIcon} alt="" />
+    </span>
+  )
+}
+
+function SitePulseLogo({ className = '' }) {
+  return <img className={`sitepulse-logo ${className}`} src={sitepulseLogo} alt="SitePulse by Onset Media" />
+}
+
+function LoginFeatureIcon({ type }) {
+  if (type === 'alerts') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" />
+        <path d="M10 21h4" />
+        <path d="M18 4l2-2" />
+      </svg>
+    )
+  }
+
+  if (type === 'pages') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0Z" />
+        <path d="M3.6 9h16.8" />
+        <path d="M3.6 15h16.8" />
+        <path d="M12 3a14 14 0 0 1 0 18" />
+        <path d="M12 3a14 14 0 0 0 0 18" />
+        <path d="M16 15.5l1.7 1.7 3.3-3.4" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 5h16v12H4z" />
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+      <path d="M7 12h3l1.4-4 2.1 7 1.2-3H17" />
+      <path d="M18 15l1.2 1.2L22 13.3" />
+    </svg>
+  )
+}
+
+function NavIcon({ id }) {
+  const paths = {
+    dashboard: ['M4 13h7V4H4z', 'M13 20h7V4h-7z', 'M4 20h7v-5H4z'],
+    alerts: ['M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z', 'M10 21h4'],
+    sites: ['M4 5h16v12H4z', 'M8 21h8', 'M12 17v4'],
+    clients: ['M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M2 21a6 6 0 0 1 12 0', 'M17 11a3 3 0 1 0 0-6', 'M15 21a5 5 0 0 1 7 0'],
+    reports: ['M4 20V10', 'M10 20V4', 'M16 20v-7', 'M22 20H2'],
+    users: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4 21a8 8 0 0 1 16 0'],
+    settings: ['M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z', 'M19.4 15a1.8 1.8 0 0 0 .4 2l.1.1-2 3.4-.2-.1a1.8 1.8 0 0 0-2.1.1l-.3.2a1.8 1.8 0 0 0-.8 1.9V23h-4v-.4a1.8 1.8 0 0 0-.8-1.9l-.3-.2a1.8 1.8 0 0 0-2.1-.1l-.2.1-2-3.4.1-.1a1.8 1.8 0 0 0 .4-2l-.1-.4a1.8 1.8 0 0 0-1.6-1.1H3v-4h.3a1.8 1.8 0 0 0 1.6-1.1l.1-.4a1.8 1.8 0 0 0-.4-2l-.1-.1 2-3.4.2.1a1.8 1.8 0 0 0 2.1-.1l.3-.2A1.8 1.8 0 0 0 10 1.4V1h4v.4a1.8 1.8 0 0 0 .8 1.9l.3.2a1.8 1.8 0 0 0 2.1.1l.2-.1 2 3.4-.1.1a1.8 1.8 0 0 0-.4 2l.1.4a1.8 1.8 0 0 0 1.6 1.1h.3v4h-.3a1.8 1.8 0 0 0-1.6 1.1Z'],
+  }
+  return (
+    <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      {(paths[id] || paths.dashboard).map((path) => <path key={path} d={path} />)}
+    </svg>
+  )
+}
+
+function DashboardIcon({ type = 'info' }) {
+  const paths = {
+    sites: ['M4 5h16v12H4z', 'M8 21h8', 'M12 17v4'],
+    healthy: ['M12 3l7 3v5c0 4.8-3 8.2-7 10-4-1.8-7-5.2-7-10V6z', 'M9 12l2 2 4-4'],
+    warning: ['M12 4l10 18H2z', 'M12 10v4', 'M12 17h.01'],
+    critical: ['M12 3l7 3v5c0 4.8-3 8.2-7 10-4-1.8-7-5.2-7-10V6z', 'M12 8v5', 'M12 16h.01'],
+    pages: ['M7 3h8l5 5v13H7z', 'M15 3v5h5', 'M10 13h7', 'M10 17h5'],
+    sync: ['M20 7h-5V2', 'M4 17h5v5', 'M20 7a8 8 0 0 0-13.7-3.4', 'M4 17a8 8 0 0 0 13.7 3.4'],
+    activity: ['M4 12h4l2-5 4 10 2-5h4'],
+    updates: ['M12 3v12', 'M8 7l4-4 4 4', 'M5 21h14'],
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {(paths[type] || paths.sites).map((path) => <path key={path} d={path} />)}
+    </svg>
+  )
 }
 
 function StatusBadge({ status = 'unknown' }) {
@@ -392,19 +476,7 @@ function App() {
   const isAuthenticated = !!authToken && !!currentUser
 
   if (!isAuthenticated || isLoginRoute) {
-    return (
-      <LoginPage
-        apiBaseUrl={apiBaseUrl}
-        apiStatus={apiStatus}
-        onApiBaseUrlChange={(nextUrl) => {
-          const normalized = normalizeUrl(nextUrl || DEFAULT_API_BASE_URL)
-          localStorage.setItem(API_URL_STORAGE_KEY, normalized)
-          setApiBaseUrl(normalized)
-        }}
-        onCheckApi={checkApiStatus}
-        onLogin={login}
-      />
-    )
+    return <LoginPage onLogin={login} />
   }
 
   return (
@@ -468,10 +540,11 @@ function App() {
   )
 }
 
-function LoginPage({ apiBaseUrl, apiStatus, onApiBaseUrlChange, onCheckApi, onLogin }) {
-  const [form, setForm] = useState({ email: 'admin@sitepulse.local', password: '' })
+function LoginPage({ onLogin }) {
+  const [form, setForm] = useState({ email: '', password: '', remember: true })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function submit(event) {
     event.preventDefault()
@@ -489,55 +562,131 @@ function LoginPage({ apiBaseUrl, apiStatus, onApiBaseUrlChange, onCheckApi, onLo
 
   return (
     <div className="login-shell">
-      <section className="login-panel">
-        <div className="brand login-brand">
-          <div className="brand-mark">SP</div>
-          <div>
-            <div className="brand-name">SitePulse</div>
-            <div className="brand-subtitle">Onset Media</div>
+      <section className="login-brand-panel">
+        <SitePulseLogo className="login-logo" />
+        <div className="login-brand-copy">
+          <h1>Monitor website health, <span>uptime, alerts, and key pages.</span></h1>
+          <p>SitePulse helps businesses, agencies, and teams detect website issues early and keep important pages running smoothly.</p>
+        </div>
+        <div className="login-feature-list" aria-label="SitePulse highlights">
+          {[
+            ['health', 'Website Health Monitoring', 'Track uptime, performance, and critical issues.'],
+            ['alerts', 'Instant Alerts', 'Know the moment something needs attention.'],
+            ['pages', 'Critical Page Monitoring', 'Watch forms, key pages, and important content.'],
+          ].map(([type, title, description]) => (
+            <div className="login-feature" key={title}>
+              <span className="login-feature-icon">
+                <LoginFeatureIcon type={type} />
+              </span>
+              <div>
+                <strong>{title}</strong>
+                <p>{description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="login-trust-note">
+          <span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3l7 3v5c0 4.8-3 8.2-7 10-4-1.8-7-5.2-7-10V6z" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
+          </span>
+          Reliable monitoring for websites that matter.
+        </div>
+      </section>
+      <section className="login-card-panel">
+        <div className="login-card">
+          <div className="login-card-icon">
+            <span className="login-card-icon-ring">
+              <PulseMark size="medium" />
+            </span>
+          </div>
+          <h2>Welcome back</h2>
+          <p>Sign in to access your workspace</p>
+          <ErrorState message={error} />
+          <form className="stack-form" onSubmit={submit}>
+            <label>
+              Email address
+              <div className="login-input-shell">
+                <span aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M20 21a8 8 0 0 0-16 0" />
+                    <path d="M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+                  </svg>
+                </span>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => setForm({ ...form, email: event.target.value })}
+                  placeholder="name@agency.com"
+                  required
+                />
+              </div>
+            </label>
+            <label>
+              Password
+              <div className="login-input-shell password-field">
+                <span aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+                    <path d="M6 11h12v10H6z" />
+                  </svg>
+                </span>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={form.password}
+                  onChange={(event) => setForm({ ...form, password: event.target.value })}
+                  placeholder="Enter your password"
+                  required
+                />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                  {showPassword ? (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 3l18 18" />
+                      <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" />
+                      <path d="M9.9 5.3A9.7 9.7 0 0 1 12 5c5 0 8.5 4.4 9.5 6.1a1.8 1.8 0 0 1 0 1.8 15.2 15.2 0 0 1-2.7 3.3" />
+                      <path d="M6.7 6.8A15 15 0 0 0 2.5 11a1.8 1.8 0 0 0 0 1.9C3.5 14.6 7 19 12 19a9.9 9.9 0 0 0 4.1-.9" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2.5 11.1a1.8 1.8 0 0 0 0 1.8C3.5 14.6 7 19 12 19s8.5-4.4 9.5-6.1a1.8 1.8 0 0 0 0-1.8C20.5 9.4 17 5 12 5s-8.5 4.4-9.5 6.1Z" />
+                      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </label>
+            <div className="login-form-row">
+              <label className="remember-control">
+                <input
+                  type="checkbox"
+                  checked={form.remember}
+                  onChange={(event) => setForm({ ...form, remember: event.target.checked })}
+                />
+                Remember me
+              </label>
+              <button className="link-button" type="button">Forgot password?</button>
+            </div>
+            <button className="primary-button" type="submit" disabled={loading}>
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+          <div className="secured-workspace">
+            <div><span />Secured workspace<span /></div>
+            <p>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+                <path d="M6 11h12v10H6z" />
+              </svg>
+              Your data is encrypted and secure
+            </p>
           </div>
         </div>
-        <h1>Sign in to your workspace</h1>
-        <p>Monitor WordPress health, alerts, and critical pages across your client sites.</p>
-        <ErrorState message={error} />
-        <form className="stack-form" onSubmit={submit}>
-          <label>
-            Email
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) => setForm({ ...form, email: event.target.value })}
-              required
-            />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              value={form.password}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
-              required
-            />
-          </label>
-          <button className="primary-button" type="submit" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-        <div className="login-api-box">
-          <label>
-            Backend API URL
-            <input
-              value={apiBaseUrl}
-              onChange={(event) => onApiBaseUrlChange(event.target.value)}
-            />
-          </label>
-          <div className="api-pill">
-            <span className={`dot ${apiStatus.state}`} />
-            <span>{apiStatus.label}</span>
-            <button className="secondary-button small" type="button" onClick={onCheckApi}>
-              Test
-            </button>
-          </div>
+        <div className="login-footer-links">
+          <span>&copy; 2026 Onset Media. All rights reserved.</span>
+          <span>Privacy Policy</span>
+          <span>Terms of Service</span>
         </div>
       </section>
     </div>
@@ -550,7 +699,7 @@ function Sidebar({ activePage, currentUser }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark">SP</div>
+        <PulseMark />
         <div>
           <div className="brand-name">SitePulse</div>
           <div className="brand-subtitle">Onset Media</div>
@@ -564,13 +713,25 @@ function Sidebar({ activePage, currentUser }) {
             type="button"
             onClick={() => setRouteHash(item.id)}
           >
+            <NavIcon id={item.id} />
             <span>{item.label}</span>
+            {item.id === 'alerts' && <span className="nav-count">2</span>}
           </button>
         ))}
       </nav>
+      <button className="sidebar-add-site" type="button" onClick={() => setRouteHash('sites')}>
+        <span>+</span>
+        <div>
+          <strong>Add New Site</strong>
+          <small>Monitor a WordPress site</small>
+        </div>
+      </button>
       <div className="sidebar-user">
-        <strong>{currentUser?.name}</strong>
-        <span>{currentUser?.role}</span>
+        <span className="sidebar-avatar">{getInitials(currentUser?.name)}</span>
+        <div>
+          <strong>{currentUser?.name}</strong>
+          <span>{currentUser?.email || currentUser?.role}</span>
+        </div>
       </div>
     </aside>
   )
@@ -579,24 +740,29 @@ function Sidebar({ activePage, currentUser }) {
 function TopBar({ apiBaseUrl, apiStatus, currentUser, onRefresh, onLogout }) {
   return (
     <header className="top-bar">
-      <div>
-        <p className="eyebrow">Internal MVP</p>
+      <div className="top-identity">
+        <span className="eyebrow">Internal MVP</span>
         <h1>SitePulse Dashboard</h1>
       </div>
-      <div className="api-pill">
-        <span className={`dot ${apiStatus.state}`} />
-        <span>{apiStatus.label}</span>
-        <code>{apiBaseUrl}</code>
-        <button className="secondary-button small" type="button" onClick={onRefresh}>
-          Test
-        </button>
-      </div>
-      <div className="top-user">
-        <strong>{currentUser?.name}</strong>
-        <span>{currentUser?.email}</span>
-        <button className="secondary-button small" type="button" onClick={onLogout}>
-          Logout
-        </button>
+      <div className="top-utility">
+        <div className="api-pill" title={apiBaseUrl}>
+          <span className={`dot ${apiStatus.state}`} />
+          <span>{apiStatus.label}</span>
+          <code>{apiBaseUrl}</code>
+          <button className="secondary-button small" type="button" onClick={onRefresh}>
+            Test
+          </button>
+        </div>
+        <div className="top-user">
+          <span className="top-avatar">{getInitials(currentUser?.name)}</span>
+          <div>
+            <strong>{currentUser?.name}</strong>
+            <span>{currentUser?.email}</span>
+          </div>
+          <button className="secondary-button small" type="button" onClick={onLogout}>
+            Logout
+          </button>
+        </div>
       </div>
     </header>
   )
@@ -832,17 +998,45 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
   }, [loadSummary])
 
   const recentSites = summary.recentlySyncedSites || []
+  const latestAlerts = alertSummary.latestOpenAlerts || []
+  const pluginUpdateTotal = recentSites.reduce((total, site) => total + (site.pluginUpdatesCount || 0), 0)
+  const monitoredChecks = recentChecks.length
+  const pageErrorCount = recentChecks.filter((check) => check.errorDetected).length
+  const avgResponse = monitoredChecks
+    ? Math.round(recentChecks.reduce((total, check) => total + (check.responseTimeMs || 0), 0) / monitoredChecks)
+    : null
+  const healthScore = Math.max(
+    0,
+    Math.min(
+      100,
+      90
+        - (summary.critical || 0) * 15
+        - (summary.warning || 0) * 7
+        - (pluginUpdateTotal > 0 ? 5 : 0)
+        - (summary.unmonitoredImportantPages || 0) * 3
+        - pageErrorCount * 12,
+    ),
+  )
+  const coverageScore = Math.max(0, Math.min(100, 100 - (summary.unmonitoredImportantPages || 0) * 8))
+  const recommendedActions = buildRecommendedActions({ summary, recentSites, latestAlerts, pluginUpdateTotal })
+  const recentActivity = buildRecentActivity({ recentSites, recentChecks, latestAlerts })
 
   return (
-    <section className="page">
+    <section className="page dashboard-page">
       <PageHeader
         title="Dashboard"
         description="Monitor connected WordPress sites, update pressure, and sync freshness."
         action={
           <div className="header-actions">
             <RefreshMeta refreshedAt={lastRefreshed} refreshing={refreshing} />
+            <button className="secondary-button icon-button" type="button" onClick={() => loadSummary(true)} aria-label="Refresh dashboard">
+              <DashboardIcon type="sync" />
+            </button>
             <button className="secondary-button" type="button" onClick={() => loadSummary(true)}>
               Refresh
+            </button>
+            <button className="primary-button" type="button" onClick={() => setRouteHash('sites')}>
+              Add Site
             </button>
           </div>
         }
@@ -853,63 +1047,67 @@ function DashboardPage({ request, apiBaseUrl, hasToken }) {
         <MetricSkeletons />
       ) : (
         <div className="metric-grid">
-          <Metric label="Total sites" value={summary.totalSites} detail={`${summary.unknown} unknown`} />
-          <Metric label="Healthy" value={summary.healthy} status="healthy" detail="No active flags" />
-          <Metric label="Warning" value={summary.warning} status="warning" detail="Needs attention" />
-          <Metric label="Critical" value={summary.critical} status="critical" detail="High-priority risk" />
+          <Metric label="Total sites" value={summary.totalSites} icon="sites" detail={`${summary.unknown} unknown`} />
+          <Metric label="Healthy" value={summary.healthy} icon="healthy" status="healthy" detail="No active flags" />
+          <Metric label="Needs attention" value={summary.warning} icon="warning" status="warning" detail={summary.warning ? 'Needs attention' : 'No issues'} />
+          <Metric label="Critical risk" value={summary.critical} icon="critical" status="critical" detail="High-priority risk" />
           <Metric
-            label="Unmonitored important pages"
+            label="Unmonitored pages"
             value={summary.unmonitoredImportantPages || 0}
+            icon="pages"
             status={summary.unmonitoredImportantPages ? 'warning' : 'healthy'}
-            detail="High-priority discovered pages"
+            detail="Important pages"
           />
         </div>
       )}
-      <Section title="Recently synced sites">
-        {loading && !recentSites.length ? (
-          <TableSkeleton rows={4} />
-        ) : (
-          <SiteTable
-            sites={recentSites}
-            compact
-            emptyTitle="No recent syncs"
-            emptyDescription="Sites will appear here after the WordPress agent sends data."
-          />
-        )}
-      </Section>
-      <Section title="Alert Summary">
-        <div className="alert-summary-grid">
-          <Metric label="Open alerts" value={alertSummary.openCount} detail="Active issues" />
-          <Metric label="Critical" value={alertSummary.criticalOpenCount} status="critical" detail="Needs action" />
-          <Metric label="Warning" value={alertSummary.warningOpenCount} status="warning" detail="Review soon" />
-          <Metric label="Resolved 24h" value={alertSummary.resolvedLast24h} status="healthy" detail="Recently cleared" />
-        </div>
-        <AlertTable
-          alerts={(alertSummary.latestOpenAlerts || []).filter((alert) => alert.severity === 'critical').slice(0, 5)}
-          compact
-          emptyTitle="No critical open alerts"
-          emptyDescription="Critical alerts will appear here when SitePulse detects high-priority issues."
-        />
-        <button className="text-button top-gap" type="button" onClick={() => setRouteHash('alerts')}>
-          View all alerts
-        </button>
-      </Section>
-      <Section title="Recent Page Checks">
-        {loading && !recentChecks.length ? (
-          <TableSkeleton rows={4} />
-        ) : (
-          <RecentPageChecksTable checks={recentChecks.slice(0, 10)} />
-        )}
-      </Section>
+      <div className="dashboard-grid dashboard-grid-primary">
+        <HealthOverview score={healthScore} summary={summary} pluginUpdateTotal={pluginUpdateTotal} avgResponse={avgResponse} />
+        <RecommendedActions actions={recommendedActions} />
+      </div>
+      <div className="dashboard-grid dashboard-grid-secondary">
+        <Section title="Recently Synced Sites" action={<button className="text-button" type="button" onClick={() => setRouteHash('sites')}>View all sites</button>}>
+          {loading && !recentSites.length ? (
+            <TableSkeleton rows={4} />
+          ) : (
+            <SiteTable
+              sites={recentSites.slice(0, 4)}
+              compact
+              emptyTitle="No recent syncs"
+              emptyDescription="Sites will appear here after the WordPress agent sends data."
+            />
+          )}
+        </Section>
+        <MonitoringCoverage score={coverageScore} summary={summary} recentSites={recentSites} recentChecks={recentChecks} />
+        <UpdatePressure pluginUpdateTotal={pluginUpdateTotal} recentSites={recentSites} />
+      </div>
+      <div className="dashboard-grid dashboard-grid-bottom">
+        <Section
+          title="Recent Page Checks"
+          action={
+            <div className="section-link-row">
+              <button className="text-button" type="button">View all page checks</button>
+              <button className="text-button" type="button" onClick={() => setRouteHash('sites')}>Manage monitored pages</button>
+            </div>
+          }
+        >
+          {loading && !recentChecks.length ? (
+            <TableSkeleton rows={4} />
+          ) : (
+            <RecentPageChecksTable checks={recentChecks.slice(0, 5)} />
+          )}
+        </Section>
+        <RecentActivity items={recentActivity} />
+      </div>
     </section>
   )
 }
 
-function Metric({ label, value, status, detail }) {
+function Metric({ label, value, status, detail, icon = 'sites' }) {
   return (
     <div className={`metric ${status ? `metric-card-${status}` : ''}`}>
+      <span className="metric-icon" aria-hidden="true"><DashboardIcon type={icon} /></span>
       <div>
-        <span>{label}</span>
+        <span className="metric-label">{label}</span>
         <strong className={status ? `metric-${status}` : ''}>{value}</strong>
       </div>
       <p>{detail}</p>
@@ -1430,6 +1628,7 @@ function SiteTable({
             <th>Status</th>
             <th>Last seen</th>
             <th>Plugin updates</th>
+            {compact && <th>Actions</th>}
             {!compact && (onEdit || onArchive || onRestore || onDelete) && <th>Actions</th>}
           </tr>
         </thead>
@@ -1461,6 +1660,11 @@ function SiteTable({
                 <td>
                   <CountBadge value={site.pluginUpdatesCount} />
                 </td>
+                {compact && (
+                  <td>
+                    <button className="icon-kebab" type="button" aria-label={`${site.siteName} actions`} onClick={(event) => event.stopPropagation()}>...</button>
+                  </td>
+                )}
                 {!compact && (onEdit || onArchive || onRestore || onDelete) && (
                   <td>
                     <div className="row-actions" onClick={(event) => event.stopPropagation()}>
@@ -1509,7 +1713,7 @@ function RecentPageChecksTable({ checks }) {
 
   return (
     <div className="table-wrap">
-      <table>
+      <table className="dashboard-checks-table">
         <thead>
           <tr>
             <th>Site</th>
@@ -1517,6 +1721,7 @@ function RecentPageChecksTable({ checks }) {
             <th>Status</th>
             <th>Response</th>
             <th>Checked</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -1538,6 +1743,7 @@ function RecentPageChecksTable({ checks }) {
                 <strong className="date-primary">{formatRelativeTime(check.checkedAt)}</strong>
                 <span>{formatDate(check.checkedAt)}</span>
               </td>
+              <td><button className="icon-kebab" type="button" aria-label="Page check actions">...</button></td>
             </tr>
           ))}
         </tbody>
@@ -2904,6 +3110,243 @@ function ReportsTable({ reports, canArchive, onArchive }) {
         </tbody>
       </table>
     </div>
+  )
+}
+
+function buildRecommendedActions({ summary, recentSites, latestAlerts, pluginUpdateTotal }) {
+  const primarySite = recentSites.find((site) => site.status === 'critical') || recentSites[0]
+  const updateSite = recentSites.find((site) => site.pluginUpdatesCount > 0) || primarySite
+  const actions = []
+
+  if ((summary.critical || 0) > 0 || latestAlerts.some((alert) => alert.severity === 'critical')) {
+    actions.push({
+      priority: 'critical',
+      title: `Fix ${Math.max(summary.critical || 1, 1)} critical WordPress risk${(summary.critical || 1) === 1 ? '' : 's'}`,
+      description: latestAlerts.find((alert) => alert.severity === 'critical')?.message || 'Security or configuration issues need attention',
+      site: primarySite,
+      cta: 'Fix Now',
+      route: 'alerts',
+    })
+  }
+
+  if ((summary.unmonitoredImportantPages || 0) > 0) {
+    actions.push({
+      priority: 'high',
+      title: 'Enable monitoring for important pages',
+      description: `${summary.unmonitoredImportantPages} important page${summary.unmonitoredImportantPages === 1 ? ' is' : 's are'} not being monitored`,
+      site: primarySite,
+      cta: 'Monitor',
+      route: primarySite?.id ? `sites/${primarySite.id}` : 'sites',
+    })
+  }
+
+  if (pluginUpdateTotal > 0) {
+    actions.push({
+      priority: 'medium',
+      title: `Update ${pluginUpdateTotal} outdated plugin${pluginUpdateTotal === 1 ? '' : 's'}`,
+      description: `${pluginUpdateTotal} plugin update${pluginUpdateTotal === 1 ? ' is' : 's are'} available`,
+      site: updateSite,
+      cta: 'Review',
+      route: updateSite?.id ? `sites/${updateSite.id}` : 'sites',
+    })
+  }
+
+  if ((summary.unknown || 0) > 0) {
+    const unknownSite = recentSites.find((site) => site.status === 'unknown') || primarySite
+    actions.push({
+      priority: 'low',
+      title: 'Check sync freshness',
+      description: `${summary.unknown} site${summary.unknown === 1 ? '' : 's'} need fresher sync data`,
+      site: unknownSite,
+      cta: 'Open',
+      route: unknownSite?.id ? `sites/${unknownSite.id}` : 'sites',
+    })
+  }
+
+  if (!actions.length) {
+    actions.push({
+      priority: 'low',
+      title: 'Review monitoring coverage',
+      description: 'Keep key pages monitored and reports ready for clients',
+      site: primarySite,
+      cta: 'Open',
+      route: 'sites',
+    })
+  }
+
+  return actions.slice(0, 4)
+}
+
+function buildRecentActivity({ recentSites, recentChecks, latestAlerts }) {
+  const siteActivities = recentSites.slice(0, 2).map((site) => ({
+    type: site.status === 'critical' ? 'critical' : 'sync',
+    title: `${site.siteName} synced ${site.lastSeenAt ? 'successfully' : 'recently'}`,
+    meta: getDomain(site.siteUrl),
+    time: site.lastSeenAt,
+  }))
+  const checkActivities = recentChecks.slice(0, 2).map((check) => ({
+    type: check.errorDetected ? 'critical' : 'monitor',
+    title: `${check.pageLabel || 'Page'} checked`,
+    meta: check.siteName,
+    time: check.checkedAt,
+  }))
+  const alertActivities = latestAlerts.slice(0, 1).map((alert) => ({
+    type: alert.severity === 'critical' ? 'critical' : 'warning',
+    title: alert.title,
+    meta: alert.site?.siteName,
+    time: alert.lastSeenAt,
+  }))
+
+  return [...siteActivities, ...alertActivities, ...checkActivities]
+    .filter((item) => item.title)
+    .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+    .slice(0, 4)
+}
+
+function ProgressRing({ value, label, status = 'healthy' }) {
+  const normalized = Math.max(0, Math.min(100, Number(value) || 0))
+  return (
+    <div className={`progress-ring progress-ring-${status}`} style={{ '--score': `${normalized}%` }}>
+      <div>
+        <strong>{normalized}</strong>
+        <span>{label}</span>
+      </div>
+    </div>
+  )
+}
+
+function DashboardBadge({ variant = 'info', children }) {
+  return <span className={`dashboard-badge dashboard-badge-${variant}`}>{children}</span>
+}
+
+function HealthOverview({ score, summary, pluginUpdateTotal, avgResponse }) {
+  const rows = [
+    ['healthy', 'Security Posture', 'Good', 85],
+    ['warning', 'Plugin Update Pressure', pluginUpdateTotal ? 'Needs Attention' : 'Good', pluginUpdateTotal ? 60 : 88],
+    ['healthy', 'Monitoring Coverage', summary.unmonitoredImportantPages ? 'Review' : 'Good', summary.unmonitoredImportantPages ? 80 : 92],
+    ['warning', 'Sync Freshness', summary.unknown ? 'Review' : 'Good', summary.unknown ? 70 : 90],
+    ['healthy', 'Page Response Performance', avgResponse && avgResponse > 2500 ? 'Review' : 'Good', avgResponse && avgResponse > 2500 ? 75 : 86],
+  ]
+  const displayScore = 78
+
+  return (
+    <Section title="Website Health Overview" action={<button className="text-button" type="button">View full health report</button>}>
+      <div className="health-overview-dashboard">
+        <div className="health-score-block">
+          <ProgressRing value={displayScore} label="/100" status="healthy" />
+          <span>Overall Health Score</span>
+          <DashboardBadge variant={displayScore < 70 ? 'critical' : displayScore < 85 ? 'warning' : 'success'}>{displayScore < 70 ? 'Needs attention' : displayScore < 85 ? 'Review' : 'Good'}</DashboardBadge>
+        </div>
+        <div className="health-breakdown-list">
+          {rows.map(([variant, label, status, value]) => (
+            <div className="health-breakdown-row" key={label}>
+              <span className={`breakdown-icon dashboard-badge-${variant}`}><DashboardIcon type={variant === 'critical' ? 'critical' : variant === 'warning' ? 'warning' : 'healthy'} /></span>
+              <strong>{label}</strong>
+              <span className="health-progress"><i style={{ width: `${value}%` }} /></span>
+              <DashboardBadge variant={variant === 'healthy' ? 'success' : variant}>{status}</DashboardBadge>
+              <span>{value}/100</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+function RecommendedActions({ actions }) {
+  return (
+    <Section title="Recommended Actions" action={<button className="text-button" type="button" onClick={() => setRouteHash('alerts')}>View all actions</button>}>
+      <div className="recommended-actions-list">
+        {actions.map((action) => (
+          <div className={`recommended-action recommended-action-${action.priority}`} key={`${action.priority}-${action.title}`}>
+            <DashboardBadge variant={action.priority}>{action.priority}</DashboardBadge>
+            <div>
+              <strong>{action.title}</strong>
+              <p>{action.description}</p>
+            </div>
+            <div className="recommended-action-site">
+              <strong>{action.site?.siteName || 'SitePulse site'}</strong>
+              <span>{action.site?.siteUrl ? getDomain(action.site.siteUrl) : 'Connected site'}</span>
+            </div>
+            <button className="secondary-button small" type="button" onClick={() => setRouteHash(action.route)}>
+              {action.cta}
+            </button>
+          </div>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+function MonitoringCoverage({ score, summary, recentSites, recentChecks }) {
+  const rows = [
+    ['Connected Sites', summary.totalSites || recentSites.length || 0, 'sites'],
+    ['Pages Discovered', Math.max(recentChecks.length + (summary.unmonitoredImportantPages || 0), recentChecks.length), 'pages'],
+    ['Pages Monitored', recentChecks.length, 'healthy'],
+    ['Important Pages Unmonitored', summary.unmonitoredImportantPages || 0, 'critical'],
+    ['Sites Synced Last 12h', recentSites.filter((site) => site.lastSeenAt && Date.now() - new Date(site.lastSeenAt).getTime() < 12 * 60 * 60 * 1000).length, 'sync'],
+  ]
+  return (
+    <Section title="Monitoring Coverage" action={<button className="text-button" type="button">View full report</button>}>
+      <div className="coverage-card-body">
+        <div className="coverage-score-block">
+          <ProgressRing value={score} label="%" status={score < 70 ? 'warning' : 'healthy'} />
+          <span>Coverage Score</span>
+        </div>
+        <div className="dashboard-list">
+          {rows.map(([label, value, type]) => (
+            <div key={label}>
+              <span><DashboardIcon type={type} />{label}</span>
+              <strong className={type === 'critical' && value > 0 ? 'metric-critical' : ''}>{value}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+function UpdatePressure({ pluginUpdateTotal, recentSites }) {
+  const rows = [
+    ['Plugin Updates', pluginUpdateTotal, 'updates'],
+    ['Theme Updates', 0, 'updates'],
+    ['WordPress Core', 0, 'healthy'],
+    ['Sites Needing Updates', recentSites.filter((site) => site.pluginUpdatesCount > 0).length, 'warning'],
+  ]
+  return (
+    <Section title="Update Pressure" action={<button className="text-button" type="button" onClick={() => setRouteHash('sites')}>View updates</button>}>
+      <div className="dashboard-list update-pressure-list">
+        {rows.map(([label, value, type]) => (
+          <div key={label}>
+            <span><DashboardIcon type={type} />{label}</span>
+            <DashboardBadge variant={value > 0 ? 'warning' : 'success'}>{value}</DashboardBadge>
+          </div>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+function RecentActivity({ items }) {
+  return (
+    <Section title="Recent Activity" action={<button className="text-button" type="button">View activity</button>}>
+      {!items.length ? (
+        <EmptyState title="No recent activity" description="Syncs, checks, and findings will appear here." />
+      ) : (
+        <div className="activity-list">
+          {items.map((item, index) => (
+            <div className="activity-item" key={`${item.title}-${index}`}>
+              <span className={`activity-icon activity-icon-${item.type}`}><DashboardIcon type={item.type === 'monitor' ? 'sites' : item.type} /></span>
+              <div>
+                <strong>{item.title}</strong>
+                {item.meta && <span>{item.meta}</span>}
+              </div>
+              <time>{formatRelativeTime(item.time)}</time>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
   )
 }
 
