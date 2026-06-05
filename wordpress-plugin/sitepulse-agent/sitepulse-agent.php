@@ -15,10 +15,45 @@ define('SITEPULSE_AGENT_API_URL_OPTION', 'sitepulse_agent_api_url');
 define('SITEPULSE_AGENT_API_KEY_OPTION', 'sitepulse_agent_api_key');
 define('SITEPULSE_AGENT_LAST_SYNC_OPTION', 'sitepulse_agent_last_sync');
 define('SITEPULSE_AGENT_LAST_SYNC_STATUS_OPTION', 'sitepulse_agent_last_sync_status');
+define('SITEPULSE_AGENT_CRON_HOOK', 'sitepulse_agent_cron_sync');
+define('SITEPULSE_AGENT_CRON_SCHEDULE', 'sitepulse_agent_every_12_hours');
 
+register_activation_hook(__FILE__, 'sitepulse_agent_activate');
+register_deactivation_hook(__FILE__, 'sitepulse_agent_deactivate');
+add_filter('cron_schedules', 'sitepulse_agent_add_cron_schedule');
 add_action('admin_menu', 'sitepulse_agent_add_admin_menu');
 add_action('admin_post_sitepulse_agent_save_settings', 'sitepulse_agent_save_settings');
 add_action('admin_post_sitepulse_agent_sync_now', 'sitepulse_agent_sync_now');
+add_action(SITEPULSE_AGENT_CRON_HOOK, 'sitepulse_agent_cron_sync');
+
+function sitepulse_agent_add_cron_schedule($schedules)
+{
+    if (!isset($schedules[SITEPULSE_AGENT_CRON_SCHEDULE])) {
+        $schedules[SITEPULSE_AGENT_CRON_SCHEDULE] = array(
+            'interval' => 12 * HOUR_IN_SECONDS,
+            'display' => __('Every 12 hours', 'sitepulse-agent'),
+        );
+    }
+
+    return $schedules;
+}
+
+function sitepulse_agent_activate()
+{
+    if (!wp_next_scheduled(SITEPULSE_AGENT_CRON_HOOK)) {
+        wp_schedule_event(time() + 300, SITEPULSE_AGENT_CRON_SCHEDULE, SITEPULSE_AGENT_CRON_HOOK);
+    }
+}
+
+function sitepulse_agent_deactivate()
+{
+    wp_clear_scheduled_hook(SITEPULSE_AGENT_CRON_HOOK);
+}
+
+function sitepulse_agent_cron_sync()
+{
+    sitepulse_agent_send_sync();
+}
 
 function sitepulse_agent_add_admin_menu()
 {
@@ -43,6 +78,7 @@ function sitepulse_agent_render_settings_page()
     $api_key = get_option(SITEPULSE_AGENT_API_KEY_OPTION, '');
     $last_sync = get_option(SITEPULSE_AGENT_LAST_SYNC_OPTION, '');
     $last_status = get_option(SITEPULSE_AGENT_LAST_SYNC_STATUS_OPTION, 'Not synced yet.');
+    $next_scheduled_sync = wp_next_scheduled(SITEPULSE_AGENT_CRON_HOOK);
     ?>
     <div class="wrap">
         <h1><?php echo esc_html__('SitePulse Agent', 'sitepulse-agent'); ?></h1>
@@ -57,6 +93,18 @@ function sitepulse_agent_render_settings_page()
         <p>
             <strong><?php echo esc_html__('Last Sync:', 'sitepulse-agent'); ?></strong>
             <?php echo $last_sync ? esc_html($last_sync) : esc_html__('Never', 'sitepulse-agent'); ?>
+        </p>
+        <p>
+            <strong><?php echo esc_html__('Automatic sync:', 'sitepulse-agent'); ?></strong>
+            <?php echo esc_html__('every 12 hours', 'sitepulse-agent'); ?>
+        </p>
+        <p>
+            <strong><?php echo esc_html__('Next scheduled sync:', 'sitepulse-agent'); ?></strong>
+            <?php
+            echo $next_scheduled_sync
+                ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_scheduled_sync))
+                : esc_html__('WP-Cron is enabled; next run will be scheduled on activation.', 'sitepulse-agent');
+            ?>
         </p>
 
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">

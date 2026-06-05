@@ -85,6 +85,24 @@ curl http://localhost:4000/api/admin/page-checks/recent \
   -H "x-sitepulse-admin-token: change-me"
 ```
 
+## Scheduler MVP
+
+Check which work is due:
+
+```bash
+curl http://localhost:4000/api/admin/scheduler/due \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
+Run scheduled page checks manually:
+
+```bash
+curl -X POST http://localhost:4000/api/admin/scheduler/run-page-checks \
+  -H "x-sitepulse-admin-token: change-me"
+```
+
+The MVP defaults are WordPress Agent sync every 12 hours and monitored page checks every 12 hours. The backend reports stale agent syncs but does not trigger WordPress sites directly yet.
+
 ## Agent sync testing
 
 Configure `DATABASE_URL` in `.env`, run migrations and seed data, then start the API.

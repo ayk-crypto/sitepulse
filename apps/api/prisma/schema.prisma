@@ -56,6 +56,10 @@ model Site {
   apiKeyHash     String
   status         String          @default("unknown")
   lastSeenAt     DateTime?
+  agentSyncIntervalHours Int     @default(12)
+  pageCheckIntervalHours Int     @default(12)
+  lastPageCheckAt DateTime?
+  nextPageCheckAt DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   snapshots      SiteSnapshot[]

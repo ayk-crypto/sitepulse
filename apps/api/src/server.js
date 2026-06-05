@@ -132,6 +132,21 @@ function calculateSiteStatus({
   return "healthy";
 }
 
+function addHours(date, hours) {
+  return new Date(date.getTime() + hours * 60 * 60 * 1000);
+}
+
+function isAgentSyncStale(site, now = new Date()) {
+  if (!site.lastSeenAt) {
+    return true;
+  }
+
+  const intervalHours = site.agentSyncIntervalHours || 12;
+  const staleAfterMs = intervalHours * 2 * 60 * 60 * 1000;
+
+  return now.getTime() - new Date(site.lastSeenAt).getTime() > staleAfterMs;
+}
+
 const PAGE_ERROR_PATTERNS = [
   "There has been a critical error on this website",
   "Fatal error",
@@ -258,6 +273,15 @@ async function updateSiteStatusAfterPageChecks(siteId) {
         },
         take: 1,
       },
+      alerts: {
+        where: {
+          severity: "critical",
+          status: {
+            in: ["open", "acknowledged", "snoozed"],
+          },
+        },
+        take: 1,
+      },
     },
   });
 
@@ -271,7 +295,7 @@ async function updateSiteStatusAfterPageChecks(siteId) {
   const latestSnapshot = site.snapshots[0] || null;
   let nextStatus = site.status;
 
-  if (hasPageError) {
+  if (hasPageError || site.alerts.length > 0) {
     nextStatus = "critical";
   } else if (latestSnapshot) {
     nextStatus = calculateSiteStatus({
@@ -281,6 +305,12 @@ async function updateSiteStatusAfterPageChecks(siteId) {
       debugMode: latestSnapshot.debugMode,
       fileEditorEnabled: latestSnapshot.fileEditorEnabled,
     });
+  } else if (isAgentSyncStale(site)) {
+    nextStatus = "warning";
+  }
+
+  if (nextStatus === "healthy" && isAgentSyncStale(site)) {
+    nextStatus = "warning";
   }
 
   if (nextStatus !== site.status) {
@@ -295,6 +325,98 @@ async function updateSiteStatusAfterPageChecks(siteId) {
   }
 
   return nextStatus;
+}
+
+async function runChecksForSitePages(site, { updateSchedule = false } = {}) {
+  const pages = await prisma.monitoredPage.findMany({
+    where: {
+      siteId: site.id,
+      isActive: true,
+    },
+    include: {
+      site: {
+        select: {
+          id: true,
+          tenantId: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  const results = await Promise.all(
+    pages.map(async (page) => {
+      const check = await runPageCheck(page);
+      await generatePageCheckAlerts({ page, check });
+
+      return {
+        pageId: page.id,
+        label: page.label,
+        url: page.url,
+        check,
+      };
+    })
+  );
+
+  const siteStatus = await updateSiteStatusAfterPageChecks(site.id);
+
+  if (updateSchedule) {
+    const now = new Date();
+
+    await prisma.site.update({
+      where: {
+        id: site.id,
+      },
+      data: {
+        lastPageCheckAt: now,
+        nextPageCheckAt: addHours(now, site.pageCheckIntervalHours || 12),
+      },
+    });
+  }
+
+  return {
+    siteStatus,
+    results,
+  };
+}
+
+async function refreshStaleSiteStatuses(tenantId) {
+  const sites = await prisma.site.findMany({
+    where: {
+      tenantId,
+      status: {
+        not: "critical",
+      },
+    },
+    include: {
+      alerts: {
+        where: {
+          severity: "critical",
+          status: {
+            in: ["open", "acknowledged", "snoozed"],
+          },
+        },
+        take: 1,
+      },
+    },
+  });
+
+  await Promise.all(
+    sites
+      .filter((site) => site.alerts.length === 0 && isAgentSyncStale(site))
+      .map((site) =>
+        prisma.site.update({
+          where: {
+            id: site.id,
+          },
+          data: {
+            status: "warning",
+          },
+        })
+      )
+  );
 }
 
 function formatSiteListItem(site) {
@@ -532,6 +654,7 @@ app.get(
   requireAdminToken,
   asyncHandler(async (req, res) => {
     const tenant = await getDefaultTenant();
+    await refreshStaleSiteStatuses(tenant.id);
     const [totalSites, statusCounts, recentlySyncedSites] = await Promise.all([
       prisma.site.count({
         where: {
@@ -854,6 +977,7 @@ app.get(
   requireAdminToken,
   asyncHandler(async (req, res) => {
     const tenant = await getDefaultTenant();
+    await refreshStaleSiteStatuses(tenant.id);
     const sites = await prisma.site.findMany({
       where: {
         tenantId: tenant.id,
@@ -902,6 +1026,8 @@ app.post(
         siteUrl,
         apiKeyHash: sha256(apiKey),
         status: "unknown",
+        agentSyncIntervalHours: 12,
+        pageCheckIntervalHours: 12,
       },
     });
 
@@ -1130,44 +1256,123 @@ app.post(
       });
     }
 
-    const pages = await prisma.monitoredPage.findMany({
-      where: {
-        siteId: site.id,
-        isActive: true,
-      },
-      include: {
-        site: {
-          select: {
-            id: true,
-            tenantId: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    });
-
-    const results = await Promise.all(
-      pages.map(async (page) => {
-        const check = await runPageCheck(page);
-        await generatePageCheckAlerts({ page, check });
-
-        return {
-          pageId: page.id,
-          label: page.label,
-          url: page.url,
-          check,
-        };
-      })
-    );
-    const siteStatus = await updateSiteStatusAfterPageChecks(site.id);
+    const { results, siteStatus } = await runChecksForSitePages(site);
 
     return res.json({
       checked: results.length,
       errors: results.filter((result) => result.check.errorDetected).length,
       siteStatus,
       results,
+    });
+  })
+);
+
+app.get(
+  "/api/admin/scheduler/due",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const now = new Date();
+    const sites = await prisma.site.findMany({
+      where: {
+        tenantId: tenant.id,
+      },
+      include: {
+        monitoredPages: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            id: true,
+          },
+        },
+      },
+      orderBy: {
+        siteName: "asc",
+      },
+    });
+
+    const pageCheckSitesDue = sites.filter(
+      (site) =>
+        site.monitoredPages.length > 0 &&
+        (!site.nextPageCheckAt || new Date(site.nextPageCheckAt) <= now)
+    );
+    const staleAgentSyncSites = sites.filter((site) => {
+      if (!site.lastSeenAt) {
+        return true;
+      }
+
+      const staleAfterMs = (site.agentSyncIntervalHours || 12) * 60 * 60 * 1000;
+
+      return now.getTime() - new Date(site.lastSeenAt).getTime() > staleAfterMs;
+    });
+
+    return res.json({
+      pageCheckSitesDue: pageCheckSitesDue.map((site) => ({
+        id: site.id,
+        siteName: site.siteName,
+        siteUrl: site.siteUrl,
+        nextPageCheckAt: site.nextPageCheckAt,
+        pageCheckIntervalHours: site.pageCheckIntervalHours,
+        activeMonitoredPagesCount: site.monitoredPages.length,
+      })),
+      staleAgentSyncSites: staleAgentSyncSites.map((site) => ({
+        id: site.id,
+        siteName: site.siteName,
+        siteUrl: site.siteUrl,
+        lastSeenAt: site.lastSeenAt,
+        agentSyncIntervalHours: site.agentSyncIntervalHours,
+      })),
+    });
+  })
+);
+
+app.post(
+  "/api/admin/scheduler/run-page-checks",
+  requireAdminToken,
+  asyncHandler(async (req, res) => {
+    const tenant = await getDefaultTenant();
+    const now = new Date();
+    const sites = await prisma.site.findMany({
+      where: {
+        tenantId: tenant.id,
+        monitoredPages: {
+          some: {
+            isActive: true,
+          },
+        },
+        OR: [
+          {
+            nextPageCheckAt: null,
+          },
+          {
+            nextPageCheckAt: {
+              lte: now,
+            },
+          },
+        ],
+      },
+      orderBy: {
+        siteName: "asc",
+      },
+    });
+
+    let pagesChecked = 0;
+    let errors = 0;
+
+    for (const site of sites) {
+      const { results } = await runChecksForSitePages(site, {
+        updateSchedule: true,
+      });
+
+      pagesChecked += results.length;
+      errors += results.filter((result) => result.check.errorDetected).length;
+    }
+
+    return res.json({
+      sitesChecked: sites.length,
+      pagesChecked,
+      errors,
     });
   })
 );
@@ -1315,11 +1520,12 @@ app.post("/api/agent/sync", async (req, res) => {
         fileEditorEnabled,
       },
     });
+    const finalStatus = await updateSiteStatusAfterPageChecks(site.id);
 
     return res.json({
       received: true,
       site_id: site.id,
-      status,
+      status: finalStatus || status,
       plugin_updates_count: pluginUpdatesCount,
       snapshot_id: result.id,
     });

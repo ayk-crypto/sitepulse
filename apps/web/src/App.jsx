@@ -205,6 +205,17 @@ function AlertStatusBadge({ status = 'open' }) {
   return <span className={`alert-status alert-status-${status}`}>{status}</span>
 }
 
+function getTopIssueReasons(alerts = [], limit = 2) {
+  return alerts
+    .filter((alert) => ['open', 'acknowledged', 'snoozed'].includes(alert.status))
+    .sort((a, b) => {
+      const severityWeight = { critical: 0, warning: 1, info: 2 }
+      return (severityWeight[a.severity] ?? 3) - (severityWeight[b.severity] ?? 3)
+    })
+    .slice(0, limit)
+    .map((alert) => alert.title)
+}
+
 function App() {
   const [route, setRoute] = useState(getInitialRoute)
   const [apiBaseUrl, setApiBaseUrl] = useState(
@@ -732,6 +743,7 @@ function AlertsPage({ request, apiBaseUrl, hasToken }) {
       })
       await loadAlerts(true)
       if (selectedAlert?.id === alertId) setSelectedAlert(null)
+      setError(`${action === 'snooze' ? 'Snoozed' : action === 'resolve' ? 'Resolved' : 'Acknowledged'} alert successfully.`)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -743,7 +755,7 @@ function AlertsPage({ request, apiBaseUrl, hasToken }) {
     <section className="page">
       <PageHeader
         title="Alerts"
-        description="Structured findings and alerts across WordPress health, page monitoring, and future SaaS signals."
+        description="Review WordPress health, page monitoring, and operational alerts across client sites."
         action={
           <button className="secondary-button" type="button" onClick={() => loadAlerts(true)}>
             Refresh
@@ -802,13 +814,13 @@ function AlertsPage({ request, apiBaseUrl, hasToken }) {
             />
           )}
         </Section>
-        <AlertDetailCard alert={selectedAlert} />
+        <AlertDetailCard alert={selectedAlert} actionId={actionId} onAction={runAlertAction} />
       </div>
     </section>
   )
 }
 
-function AlertTable({ alerts, compact = false, actionId, onSelect, onAction, emptyTitle, emptyDescription }) {
+function AlertTable({ alerts, compact = false, onSelect, emptyTitle, emptyDescription }) {
   if (!alerts.length) {
     return (
       <EmptyState
@@ -820,48 +832,39 @@ function AlertTable({ alerts, compact = false, actionId, onSelect, onAction, emp
 
   return (
     <div className="table-wrap">
-      <table className="alerts-table">
+      <table className={compact ? 'alerts-table compact-alerts-table' : 'alerts-table'}>
         <thead>
           <tr>
             <th>Severity</th>
-            <th>Status</th>
-            <th>Site</th>
             <th>Title</th>
+            <th>Site</th>
             {!compact && <th>Source</th>}
-            {!compact && <th>First Seen</th>}
             <th>Last Seen</th>
-            {!compact && <th>Count</th>}
-            {!compact && <th>Actions</th>}
+            {!compact && <th>Occurrences</th>}
           </tr>
         </thead>
         <tbody>
           {alerts.map((alert) => (
-            <tr key={alert.id} className={alert.severity === 'critical' ? 'error-row' : ''}>
+            <tr key={alert.id} className={alert.severity === 'critical' ? 'critical-alert-row' : ''}>
               <td><AlertSeverityBadge severity={alert.severity} /></td>
-              <td><AlertStatusBadge status={alert.status} /></td>
+              <td>
+                <div className="alert-title-cell">
+                  <div className="alert-title-line">
+                    <button className="link-button" type="button" onClick={() => onSelect?.(alert)}>
+                      {alert.title}
+                    </button>
+                    <AlertStatusBadge status={alert.status} />
+                  </div>
+                  <span>{alert.message || alert.recommendation || 'No details provided'}</span>
+                </div>
+              </td>
               <td>
                 <strong>{alert.site?.siteName || 'Unknown site'}</strong>
                 <span>{alert.site?.siteUrl ? getDomain(alert.site.siteUrl) : ''}</span>
               </td>
-              <td>
-                <button className="link-button" type="button" onClick={() => onSelect?.(alert)}>
-                  {alert.title}
-                </button>
-                <span>{alert.message || alert.recommendation || 'No details provided'}</span>
-              </td>
               {!compact && <td>{alert.source}</td>}
-              {!compact && <td>{formatDate(alert.firstSeenAt)}</td>}
               <td>{formatRelativeTime(alert.lastSeenAt)}</td>
               {!compact && <td>{alert.occurrenceCount}</td>}
-              {!compact && (
-                <td>
-                  <div className="row-actions">
-                    <button className="secondary-button small" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'acknowledge')}>Ack</button>
-                    <button className="secondary-button small" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'snooze')}>Snooze</button>
-                    <button className="danger-button small" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'resolve')}>Resolve</button>
-                  </div>
-                </td>
-              )}
             </tr>
           ))}
         </tbody>
@@ -870,7 +873,7 @@ function AlertTable({ alerts, compact = false, actionId, onSelect, onAction, emp
   )
 }
 
-function AlertDetailCard({ alert }) {
+function AlertDetailCard({ alert, actionId, onAction }) {
   return (
     <div className="section-card alert-detail-card">
       <div className="section-title">
@@ -895,6 +898,11 @@ function AlertDetailCard({ alert }) {
             <strong>Recommendation</strong>
             <p>{alert.recommendation || 'No recommendation provided.'}</p>
           </div>
+          <div className="alert-action-panel">
+            <button className="secondary-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'acknowledge')}>Acknowledge</button>
+            <button className="secondary-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'snooze')}>Snooze 24h</button>
+            <button className="danger-button" disabled={actionId === alert.id} onClick={() => onAction(alert.id, 'resolve')}>Resolve</button>
+          </div>
         </div>
       )}
     </div>
@@ -904,6 +912,7 @@ function AlertDetailCard({ alert }) {
 function SitesPage({ request, apiBaseUrl, hasToken }) {
   const [sites, setSites] = useState([])
   const [clients, setClients] = useState([])
+  const [openAlerts, setOpenAlerts] = useState([])
   const [lastRefreshed, setLastRefreshed] = useState('')
   const [createdApiKey, setCreatedApiKey] = useState('')
   const [copyLabel, setCopyLabel] = useState('Copy')
@@ -918,11 +927,13 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
 
     const cachedSites = readCache('sites', apiBaseUrl)
     const cachedClients = readCache('clients', apiBaseUrl)
+    const cachedAlerts = readCache('site-open-alerts', apiBaseUrl)
     const hasCachedData = cachedSites?.data?.sites || cachedClients?.data?.clients
 
     if (hasCachedData && !force) {
       setSites(cachedSites?.data?.sites || [])
       setClients(cachedClients?.data?.clients || [])
+      setOpenAlerts(cachedAlerts?.data?.alerts || [])
       setLastRefreshed(cachedSites?.refreshedAt || cachedClients?.refreshedAt || '')
       setRefreshing(true)
     } else {
@@ -932,14 +943,17 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
     setError('')
 
     try {
-      const [sitesData, clientsData] = await Promise.all([
+      const [sitesData, clientsData, alertsData] = await Promise.all([
         requestOnce(cacheKey('sites', apiBaseUrl), () => request('/api/admin/sites'), force),
         requestOnce(cacheKey('clients', apiBaseUrl), () => request('/api/admin/clients'), force),
+        requestOnce(cacheKey('site-open-alerts', apiBaseUrl), () => request('/api/admin/alerts?status=open'), force),
       ])
       const sitesPayload = writeCache('sites', apiBaseUrl, sitesData)
       writeCache('clients', apiBaseUrl, clientsData)
+      writeCache('site-open-alerts', apiBaseUrl, alertsData)
       setSites(sitesData.sites || [])
       setClients(clientsData.clients || [])
+      setOpenAlerts(alertsData.alerts || [])
       setLastRefreshed(sitesPayload.refreshedAt)
     } catch (err) {
       setError(err.message)
@@ -1004,6 +1018,12 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
           ) : (
             <SiteTable
               sites={sites}
+              alertsBySite={openAlerts.reduce((acc, alert) => {
+                const siteId = alert.siteId || alert.site?.id
+                if (!siteId) return acc
+                acc[siteId] = [...(acc[siteId] || []), alert]
+                return acc
+              }, {})}
               emptyTitle="No sites yet"
               emptyDescription="Create a site to generate a unique API key for the WordPress plugin."
             />
@@ -1066,7 +1086,7 @@ function SitesPage({ request, apiBaseUrl, hasToken }) {
   )
 }
 
-function SiteTable({ sites, compact = false, emptyTitle, emptyDescription }) {
+function SiteTable({ sites, compact = false, alertsBySite = {}, emptyTitle, emptyDescription }) {
   if (!sites.length) {
     return (
       <EmptyState
@@ -1089,30 +1109,35 @@ function SiteTable({ sites, compact = false, emptyTitle, emptyDescription }) {
           </tr>
         </thead>
         <tbody>
-          {sites.map((site) => (
-            <tr key={site.id} className="click-row" onClick={() => setRouteHash(`sites/${site.id}`)}>
-              <td>
-                <div className="site-cell">
-                  <div className="site-avatar">{getInitials(getDomain(site.siteUrl))}</div>
-                  <div>
-                    <strong>{site.siteName}</strong>
-                    <span>{getDomain(site.siteUrl)}</span>
+          {sites.map((site) => {
+            const issueReasons = getTopIssueReasons(alertsBySite[site.id] || [])
+
+            return (
+              <tr key={site.id} className="click-row" onClick={() => setRouteHash(`sites/${site.id}`)}>
+                <td>
+                  <div className="site-cell">
+                    <div className="site-avatar">{getInitials(getDomain(site.siteUrl))}</div>
+                    <div>
+                      <strong>{site.siteName}</strong>
+                      <span>{getDomain(site.siteUrl)}</span>
+                      {!!issueReasons.length && <span className="issue-reasons">{issueReasons.join(' · ')}</span>}
+                    </div>
                   </div>
-                </div>
-              </td>
-              {!compact && <td>{site.clientName}</td>}
-              <td>
-                <StatusBadge status={site.status} />
-              </td>
-              <td>
-                <strong className="date-primary">{formatRelativeTime(site.lastSeenAt)}</strong>
-                <span>{formatDate(site.lastSeenAt)}</span>
-              </td>
-              <td>
-                <CountBadge value={site.pluginUpdatesCount} />
-              </td>
-            </tr>
-          ))}
+                </td>
+                {!compact && <td>{site.clientName}</td>}
+                <td>
+                  <StatusBadge status={site.status} />
+                </td>
+                <td>
+                  <strong className="date-primary">{formatRelativeTime(site.lastSeenAt)}</strong>
+                  <span>{formatDate(site.lastSeenAt)}</span>
+                </td>
+                <td>
+                  <CountBadge value={site.pluginUpdatesCount} />
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -1347,6 +1372,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
     snapshot?.debugMode && 'Debug mode enabled',
     snapshot?.fileEditorEnabled && 'File editor enabled',
   ].filter(Boolean)
+  const topAlertReasons = getTopIssueReasons(relatedAlerts, 3)
 
   return (
     <section className="page">
@@ -1403,6 +1429,7 @@ function SiteDetailPage({ siteId, request, apiBaseUrl, hasToken }) {
               <DetailItem label="Last seen" value={formatDate(site.lastSeenAt)} />
               <DetailItem label="Plugin updates" value={<CountBadge value={updateCount} />} />
               <DetailItem label="Health flags" value={flags.length ? flags.join(', ') : 'None'} />
+              <DetailItem label="Top alert reasons" value={topAlertReasons.length ? topAlertReasons.join(' · ') : 'None'} />
             </div>
           </Section>
 
