@@ -1,0 +1,6 @@
+
+> api@1.0.0 start
+> node src/server.js
+
+◇ injected env (2) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+SitePulse API listening on port 8000

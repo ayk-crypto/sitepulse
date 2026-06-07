@@ -401,8 +401,96 @@ const ALERT_SOURCE_LABELS = {
   'page-discovery': 'Page Discovery',
 }
 
+const ALERT_EXPORT_FIELDS = [
+  {
+    key: 'website',
+    label: 'Website',
+    value: (alert) => alert.site?.siteName || alert.site?.siteUrl || '',
+  },
+  {
+    key: 'title',
+    label: 'Title',
+    value: (alert) => alert.title || '',
+  },
+  {
+    key: 'description',
+    label: 'Description',
+    value: (alert) => alert.message || '',
+  },
+  {
+    key: 'severity',
+    label: 'Severity',
+    value: (alert) => alert.severity || '',
+  },
+  {
+    key: 'source',
+    label: 'Source',
+    value: (alert) => formatAlertSource(alert.source),
+  },
+  {
+    key: 'occurrence',
+    label: 'Occurrence',
+    value: (alert) => alert.occurrenceCount ?? 1,
+  },
+  {
+    key: 'firstSeenAt',
+    label: 'First Seen',
+    value: (alert) => formatExportDate(alert.firstSeenAt),
+  },
+  {
+    key: 'lastSeenAt',
+    label: 'Last Seen',
+    value: (alert) => formatExportDate(alert.lastSeenAt),
+  },
+  {
+    key: 'recommendation',
+    label: 'Recommended Fix',
+    value: (alert) => alert.recommendation || '',
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    value: (alert) => alert.status || '',
+  },
+]
+
 function formatAlertSource(source) {
   return ALERT_SOURCE_LABELS[source] || (source ? source.replace(/-/g, ' ') : 'Unknown')
+}
+
+function formatExportDate(value) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString()
+}
+
+function escapeCsvValue(value) {
+  const normalized = String(value ?? '').replace(/\r?\n/g, ' ').trim()
+  return `"${normalized.replace(/"/g, '""')}"`
+}
+
+function buildAlertsCsv(alerts, selectedFields) {
+  const fields = ALERT_EXPORT_FIELDS.filter((field) => selectedFields.includes(field.key))
+  const rows = [
+    fields.map((field) => escapeCsvValue(field.label)).join(','),
+    ...alerts.map((alert) => fields.map((field) => escapeCsvValue(field.value(alert))).join(',')),
+  ]
+
+  return rows.join('\r\n')
+}
+
+function downloadCsv(filename, csv) {
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 function getTopIssueReasons(alerts = [], limit = 2) {
@@ -1267,6 +1355,10 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
   const [summary, setSummary] = useState(null)
   const [selectedAlert, setSelectedAlert] = useState(null)
   const [filters, setFilters] = useState({ status: 'open', severity: '', source: '' })
+  const [selectedSiteIds, setSelectedSiteIds] = useState([])
+  const [sites, setSites] = useState([])
+  const [siteSearchQuery, setSiteSearchQuery] = useState('')
+  const [exportFields, setExportFields] = useState(ALERT_EXPORT_FIELDS.map((field) => field.key))
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [actionId, setActionId] = useState('')
@@ -1282,6 +1374,9 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
     Object.entries(filters).forEach(([key, value]) => {
       if (value) params.set(key, value)
     })
+    if (selectedSiteIds.length > 0) {
+      params.set('siteIds', selectedSiteIds.join(','))
+    }
     const query = params.toString() ? `?${params.toString()}` : ''
 
     try {
@@ -1301,6 +1396,11 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
       writeCache('alerts-summary', apiBaseUrl, summaryData)
       setAlerts(alertsData.alerts || [])
       setSummary(summaryData)
+      setSelectedAlert((current) =>
+        current && !(alertsData.alerts || []).some((alert) => alert.id === current.id)
+          ? null
+          : current,
+      )
     } catch (err) {
       setError(err.message)
       const cached = readCache(`alerts:${query}`, apiBaseUrl)
@@ -1308,11 +1408,32 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
     } finally {
       setLoading(false)
     }
-  }, [apiBaseUrl, filters, hasToken, request])
+  }, [apiBaseUrl, filters, hasToken, request, selectedSiteIds])
+
+  const loadAlertSites = useCallback(async (force = false) => {
+    if (!hasToken) return
+
+    try {
+      const sitesData = await requestOnce(
+        cacheKey('alert-sites', apiBaseUrl),
+        () => request('/api/admin/sites'),
+        force,
+      )
+      writeCache('alert-sites', apiBaseUrl, sitesData)
+      setSites(sitesData.sites || [])
+    } catch {
+      const cached = readCache('alert-sites', apiBaseUrl)
+      if (cached?.data?.sites) setSites(cached.data.sites)
+    }
+  }, [apiBaseUrl, hasToken, request])
 
   useEffect(() => {
     loadAlerts()
   }, [loadAlerts])
+
+  useEffect(() => {
+    loadAlertSites()
+  }, [loadAlertSites])
 
   async function runAlertAction(alertId, action) {
     setActionId(alertId)
@@ -1334,6 +1455,72 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
   }
 
   const setFilter = (patch) => setFilters((prev) => ({ ...prev, ...patch }))
+  const selectedSiteNames = sites
+    .filter((site) => selectedSiteIds.includes(site.id))
+    .map((site) => site.siteName || getDomain(site.siteUrl))
+  const siteFilterLabel =
+    selectedSiteIds.length === 0
+      ? 'All websites'
+      : selectedSiteIds.length === 1
+        ? selectedSiteNames[0] || '1 website'
+        : `${selectedSiteIds.length} websites`
+  const normalizedSiteSearch = siteSearchQuery.trim().toLowerCase()
+  const visibleFilterSites = sites
+    .filter((site) => {
+      if (!normalizedSiteSearch) return true
+
+      const haystack = [
+        site.siteName,
+        site.siteUrl,
+        site.siteUrl ? getDomain(site.siteUrl) : '',
+        site.client?.name,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return haystack.includes(normalizedSiteSearch)
+    })
+    .sort((a, b) => {
+      const aSelected = selectedSiteIds.includes(a.id)
+      const bSelected = selectedSiteIds.includes(b.id)
+
+      if (aSelected !== bSelected) return aSelected ? -1 : 1
+      return (a.siteName || a.siteUrl || '').localeCompare(b.siteName || b.siteUrl || '')
+    })
+
+  function toggleSiteFilter(siteId) {
+    setSelectedAlert(null)
+    setSelectedSiteIds((current) =>
+      current.includes(siteId)
+        ? current.filter((id) => id !== siteId)
+        : [...current, siteId],
+    )
+  }
+
+  function toggleExportField(fieldKey) {
+    setExportFields((current) =>
+      current.includes(fieldKey)
+        ? current.filter((key) => key !== fieldKey)
+        : [...current, fieldKey],
+    )
+  }
+
+  function exportAlertsCsv() {
+    if (!alerts.length) {
+      setError('No alerts match the current filters.')
+      return
+    }
+
+    if (!exportFields.length) {
+      setError('Select at least one field to export.')
+      return
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10)
+    downloadCsv(`sitepulse-alerts-${stamp}.csv`, buildAlertsCsv(alerts, exportFields))
+    setError(`Exported ${alerts.length} ${alerts.length === 1 ? 'alert' : 'alerts'} successfully.`)
+  }
 
   const bandTiles = [
     {
@@ -1394,10 +1581,15 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
         title="Alerts"
         description="Review WordPress health, page monitoring, and operational alerts across client sites."
         action={
-          <button className="secondary-button small btn-with-icon" type="button" onClick={() => loadAlerts(true)}>
-            <DashboardIcon type="sync" />
-            Refresh
-          </button>
+          <div className="header-actions">
+            <button className="secondary-button small btn-with-icon" type="button" onClick={exportAlertsCsv}>
+              Export CSV
+            </button>
+            <button className="secondary-button small btn-with-icon" type="button" onClick={() => loadAlerts(true)}>
+              <DashboardIcon type="sync" />
+              Refresh
+            </button>
+          </div>
         }
       />
       {!hasToken && <EmptyTokenNotice />}
@@ -1421,46 +1613,139 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
         ))}
       </div>
 
-      <div className="alert-toolbar">
-        <div className="alert-toolbar-group">
-          <span className="alert-toolbar-label">Status</span>
-          <div className="segmented">
-            {statusOptions.map(([value, label]) => (
-              <button
-                key={value || 'all'}
-                type="button"
-                className={filters.status === value ? 'is-active' : ''}
-                onClick={() => setFilter({ status: value })}
-              >
-                {label}
-              </button>
-            ))}
+      <div className="alert-control-card">
+        <div className="alert-control-head">
+          <div>
+            <span className="alert-control-kicker">Alert controls</span>
+            <p>Filter the issue list and export the same view to CSV.</p>
+          </div>
+          <span className="alert-control-count">
+            {alerts.length} {alerts.length === 1 ? 'alert' : 'alerts'} in view
+          </span>
+        </div>
+
+        <div className="alert-toolbar">
+          <div className="alert-toolbar-group">
+            <span className="alert-toolbar-label">Status</span>
+            <div className="segmented">
+              {statusOptions.map(([value, label]) => (
+                <button
+                  key={value || 'all'}
+                  type="button"
+                  className={filters.status === value ? 'is-active' : ''}
+                  onClick={() => setFilter({ status: value })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="alert-toolbar-group">
+            <span className="alert-toolbar-label">Severity</span>
+            <div className="segmented segmented-severity">
+              {severityOptions.map(([value, label]) => (
+                <button
+                  key={value || 'all'}
+                  type="button"
+                  className={`${filters.severity === value ? 'is-active' : ''}${value ? ` seg-${value}` : ''}`}
+                  onClick={() => setFilter({ severity: value })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="alert-toolbar-group alert-source-field">
+            <span className="alert-toolbar-label">Source</span>
+            <select value={filters.source} onChange={(event) => setFilter({ source: event.target.value })}>
+              <option value="">All sources</option>
+              <option value="wordpress">WordPress</option>
+              <option value="page-monitor">Page monitor</option>
+              <option value="page-discovery">Page discovery</option>
+            </select>
+          </label>
+          <div className="alert-toolbar-group alert-website-field">
+            <span className="alert-toolbar-label">Website</span>
+            <details className="filter-menu">
+              <summary>{siteFilterLabel}</summary>
+              <div className="filter-menu-panel">
+                <div className="filter-menu-search">
+                  <input
+                    type="search"
+                    placeholder="Search websites..."
+                    value={siteSearchQuery}
+                    onChange={(event) => setSiteSearchQuery(event.target.value)}
+                  />
+                </div>
+                <div className="filter-menu-actions">
+                  <span>{selectedSiteIds.length ? `${selectedSiteIds.length} selected` : `${sites.length} websites`}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAlert(null)
+                      setSelectedSiteIds([])
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="filter-menu-options">
+                  {visibleFilterSites.map((site) => (
+                    <label key={site.id} className="filter-check-row">
+                      <input
+                        type="checkbox"
+                        checked={selectedSiteIds.includes(site.id)}
+                        onChange={() => toggleSiteFilter(site.id)}
+                      />
+                      <span>
+                        <strong>{site.siteName || getDomain(site.siteUrl)}</strong>
+                        <small>{site.siteUrl ? getDomain(site.siteUrl) : 'No URL'}</small>
+                      </span>
+                    </label>
+                  ))}
+                  {!sites.length && <span className="filter-menu-empty">No websites found</span>}
+                  {sites.length > 0 && !visibleFilterSites.length && (
+                    <span className="filter-menu-empty">No websites match your search</span>
+                  )}
+                </div>
+              </div>
+            </details>
           </div>
         </div>
-        <div className="alert-toolbar-group">
-          <span className="alert-toolbar-label">Severity</span>
-          <div className="segmented segmented-severity">
-            {severityOptions.map(([value, label]) => (
-              <button
-                key={value || 'all'}
-                type="button"
-                className={`${filters.severity === value ? 'is-active' : ''}${value ? ` seg-${value}` : ''}`}
-                onClick={() => setFilter({ severity: value })}
-              >
-                {label}
-              </button>
+
+        <div className="alert-export-panel">
+          <div className="export-panel-title">
+            <span className="alert-toolbar-label">CSV columns</span>
+            <p>{exportFields.length} of {ALERT_EXPORT_FIELDS.length} selected</p>
+          </div>
+          <div className="export-field-grid">
+            {ALERT_EXPORT_FIELDS.map((field) => (
+              <label key={field.key} className="export-field-check">
+                <input
+                  type="checkbox"
+                  checked={exportFields.includes(field.key)}
+                  onChange={() => toggleExportField(field.key)}
+                />
+                <span>{field.label}</span>
+              </label>
             ))}
           </div>
+          <div className="export-panel-actions">
+            <button
+              className="secondary-button small"
+              type="button"
+              onClick={() => setExportFields(ALERT_EXPORT_FIELDS.map((field) => field.key))}
+            >
+              Select all
+            </button>
+            <button className="secondary-button small" type="button" onClick={() => setExportFields([])}>
+              Deselect all
+            </button>
+            <button className="primary-button small" type="button" onClick={exportAlertsCsv}>
+              Export CSV
+            </button>
+          </div>
         </div>
-        <label className="alert-toolbar-group alert-source-field">
-          <span className="alert-toolbar-label">Source</span>
-          <select value={filters.source} onChange={(event) => setFilter({ source: event.target.value })}>
-            <option value="">All sources</option>
-            <option value="wordpress">WordPress</option>
-            <option value="page-monitor">Page monitor</option>
-            <option value="page-discovery">Page discovery</option>
-          </select>
-        </label>
       </div>
 
       <div className="split-layout alerts-layout">
@@ -1560,6 +1845,9 @@ function AlertCard({ alert, selected, onSelect }) {
             </span>
           </span>
           <span className="alert-meta-chips">
+            <span className={`alert-meta-chip alert-meta-severity alert-meta-severity-${severity}`}>
+              {severity}
+            </span>
             <span className="alert-meta-chip">{formatAlertSource(alert.source)}</span>
             <span className="alert-meta-chip">{formatRelativeTime(alert.lastSeenAt)}</span>
             {alert.occurrenceCount > 1 && (
@@ -1589,6 +1877,26 @@ function AlertDetailPanel({ alert, actionId, onAction, onClose }) {
   const severity = alert.severity || 'info'
   const tone = severity === 'critical' ? 'critical' : severity === 'warning' ? 'warning' : 'info'
   const busy = actionId === alert.id
+  const activeStatuses = ['open', 'acknowledged', 'snoozed']
+  const isActive = activeStatuses.includes(alert.status)
+  const isResolved = alert.status === 'resolved'
+  const actionButtons = [
+    alert.status === 'open' && {
+      action: 'acknowledge',
+      label: 'Acknowledge',
+      className: 'secondary-button',
+    },
+    alert.status !== 'snoozed' && isActive && {
+      action: 'snooze',
+      label: 'Snooze 24h',
+      className: 'secondary-button',
+    },
+    isActive && {
+      action: 'resolve',
+      label: 'Resolve',
+      className: 'primary-button',
+    },
+  ].filter(Boolean)
 
   return (
     <aside className="section-card alert-detail-card">
@@ -1640,6 +1948,27 @@ function AlertDetailPanel({ alert, actionId, onAction, onClose }) {
             <span>{formatRelativeTime(alert.firstSeenAt)}</span>
           </div>
         </div>
+        {alert.acknowledgedAt && (
+          <div className="incident-timeline-row">
+            <span className="incident-tl-dot is-acknowledged" />
+            <div>
+              <strong>Acknowledged</strong>
+              <span>
+                {formatRelativeTime(alert.acknowledgedAt)}
+                {alert.acknowledgedBy ? ` by ${alert.acknowledgedBy}` : ''}
+              </span>
+            </div>
+          </div>
+        )}
+        {alert.snoozedUntil && alert.status === 'snoozed' && (
+          <div className="incident-timeline-row">
+            <span className="incident-tl-dot is-acknowledged" />
+            <div>
+              <strong>Snoozed</strong>
+              <span>Until {formatDate(alert.snoozedUntil)}</span>
+            </div>
+          </div>
+        )}
         <div className="incident-timeline-row">
           <span className="incident-tl-dot is-latest" />
           <div>
@@ -1647,6 +1976,15 @@ function AlertDetailPanel({ alert, actionId, onAction, onClose }) {
             <span>{formatRelativeTime(alert.lastSeenAt)}</span>
           </div>
         </div>
+        {alert.resolvedAt && (
+          <div className="incident-timeline-row">
+            <span className="incident-tl-dot is-resolved" />
+            <div>
+              <strong>Resolved</strong>
+              <span>{formatRelativeTime(alert.resolvedAt)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="incident-reco">
@@ -1655,17 +1993,25 @@ function AlertDetailPanel({ alert, actionId, onAction, onClose }) {
       </div>
 
       {onAction ? (
-        <div className="incident-actions">
-          <button className="secondary-button" disabled={busy} onClick={() => onAction(alert.id, 'acknowledge')}>
-            Acknowledge
-          </button>
-          <button className="secondary-button" disabled={busy} onClick={() => onAction(alert.id, 'snooze')}>
-            Snooze 24h
-          </button>
-          <button className="primary-button" disabled={busy} onClick={() => onAction(alert.id, 'resolve')}>
-            Resolve
-          </button>
-        </div>
+        isResolved ? (
+          <div className="incident-state-note">
+            <strong>Resolved alert</strong>
+            <span>This alert is closed. If the next scan sees the same fingerprint again, SitePulse will reopen it as active.</span>
+          </div>
+        ) : (
+          <div className="incident-actions">
+            {actionButtons.map((button) => (
+              <button
+                key={button.action}
+                className={button.className}
+                disabled={busy}
+                onClick={() => onAction(alert.id, button.action)}
+              >
+                {button.label}
+              </button>
+            ))}
+          </div>
+        )
       ) : (
         <p className="incident-noperm">You don't have permission to act on alerts.</p>
       )}

@@ -25,6 +25,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "change-me";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 const OWNER_ADMIN_ROLES = ["owner", "admin"];
 const MANAGER_WRITE_ROLES = ["owner", "admin", "manager"];
+const ACTIVE_ALERT_STATUSES = ["open", "acknowledged", "snoozed"];
 
 app.use(cors());
 app.use(express.json());
@@ -217,6 +218,10 @@ function requireRole(roles) {
 
     return next();
   };
+}
+
+function isActiveAlertStatus(status) {
+  return ACTIVE_ALERT_STATUSES.includes(status);
 }
 
 function requireString(value, fieldName) {
@@ -1799,7 +1804,18 @@ app.get(
       where.source = String(req.query.source);
     }
 
-    if (req.query.siteId) {
+    if (req.query.siteIds) {
+      const siteIds = String(req.query.siteIds)
+        .split(",")
+        .map((siteId) => siteId.trim())
+        .filter(Boolean);
+
+      if (siteIds.length > 0) {
+        where.siteId = {
+          in: siteIds,
+        };
+      }
+    } else if (req.query.siteId) {
       where.siteId = String(req.query.siteId);
     }
 
@@ -1871,6 +1887,18 @@ app.post(
       });
     }
 
+    if (!isActiveAlertStatus(existing.status)) {
+      return res.status(409).json({
+        error: "Resolved alerts are historical. They reopen automatically when a later scan detects the issue again.",
+      });
+    }
+
+    if (existing.status === "acknowledged") {
+      return res.json({
+        alert: existing,
+      });
+    }
+
     const alert = await prisma.alert.update({
       where: {
         id: existing.id,
@@ -1907,13 +1935,20 @@ app.post(
       });
     }
 
+    if (!isActiveAlertStatus(existing.status)) {
+      return res.status(409).json({
+        error: "Resolved alerts are historical. They reopen automatically when a later scan detects the issue again.",
+      });
+    }
+
+    const resolvedAt = new Date();
     const alert = await prisma.alert.update({
       where: {
         id: existing.id,
       },
       data: {
         status: "resolved",
-        resolvedAt: new Date(),
+        resolvedAt,
       },
     });
 
@@ -1924,7 +1959,7 @@ app.post(
       },
       data: {
         status: "resolved",
-        resolvedAt: new Date(),
+        resolvedAt,
       },
     });
 
@@ -1953,6 +1988,12 @@ app.post(
     if (!existing) {
       return res.status(404).json({
         error: "Alert not found",
+      });
+    }
+
+    if (!isActiveAlertStatus(existing.status)) {
+      return res.status(409).json({
+        error: "Resolved alerts are historical. They reopen automatically when a later scan detects the issue again.",
       });
     }
 
