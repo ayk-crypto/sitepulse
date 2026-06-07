@@ -1577,21 +1577,6 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
 
   return (
     <section className="page alerts-page">
-      <PageHeader
-        title="Alerts"
-        description="Review WordPress health, page monitoring, and operational alerts across client sites."
-        action={
-          <div className="header-actions">
-            <button className="secondary-button small btn-with-icon" type="button" onClick={exportAlertsCsv}>
-              Export CSV
-            </button>
-            <button className="secondary-button small btn-with-icon" type="button" onClick={() => loadAlerts(true)}>
-              <DashboardIcon type="sync" />
-              Refresh
-            </button>
-          </div>
-        }
-      />
       {!hasToken && <EmptyTokenNotice />}
       <FeedbackBanner message={error} />
 
@@ -1615,13 +1600,62 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
 
       <div className="alert-control-card">
         <div className="alert-control-head">
-          <div>
-            <span className="alert-control-kicker">Alert controls</span>
-            <p>Filter the issue list and export the same view to CSV.</p>
+          <div className="alert-control-head-text">
+            <span className="alert-control-kicker">Filters</span>
+            <p>Filter the issue list across all monitored sites.</p>
           </div>
-          <span className="alert-control-count">
-            {alerts.length} {alerts.length === 1 ? 'alert' : 'alerts'} in view
-          </span>
+          <div className="alert-control-actions">
+            <span className="alert-control-count">
+              {alerts.length} {alerts.length === 1 ? 'alert' : 'alerts'} in view
+            </span>
+            <details className="export-menu">
+              <summary className="secondary-button small">Export CSV</summary>
+              <div className="export-menu-panel">
+                <div className="export-menu-head">
+                  <span className="alert-toolbar-label">CSV columns</span>
+                  <span className="export-menu-count">
+                    {exportFields.length}/{ALERT_EXPORT_FIELDS.length}
+                  </span>
+                </div>
+                <div className="export-chip-row">
+                  {ALERT_EXPORT_FIELDS.map((field) => {
+                    const on = exportFields.includes(field.key)
+                    return (
+                      <button
+                        key={field.key}
+                        type="button"
+                        className={`export-chip${on ? ' is-on' : ''}`}
+                        aria-pressed={on}
+                        onClick={() => toggleExportField(field.key)}
+                      >
+                        {field.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="export-menu-foot">
+                  <div className="export-menu-bulk">
+                    <button
+                      type="button"
+                      onClick={() => setExportFields(ALERT_EXPORT_FIELDS.map((field) => field.key))}
+                    >
+                      Select all
+                    </button>
+                    <button type="button" onClick={() => setExportFields([])}>
+                      Clear
+                    </button>
+                  </div>
+                  <button className="primary-button small" type="button" onClick={exportAlertsCsv}>
+                    Export CSV
+                  </button>
+                </div>
+              </div>
+            </details>
+            <button className="secondary-button small btn-with-icon" type="button" onClick={() => loadAlerts(true)}>
+              <DashboardIcon type="sync" />
+              Refresh
+            </button>
+          </div>
         </div>
 
         <div className="alert-toolbar">
@@ -1713,39 +1747,6 @@ function AlertsPage({ request, apiBaseUrl, hasToken, currentUser }) {
           </div>
         </div>
 
-        <div className="alert-export-panel">
-          <div className="export-panel-title">
-            <span className="alert-toolbar-label">CSV columns</span>
-            <p>{exportFields.length} of {ALERT_EXPORT_FIELDS.length} selected</p>
-          </div>
-          <div className="export-field-grid">
-            {ALERT_EXPORT_FIELDS.map((field) => (
-              <label key={field.key} className="export-field-check">
-                <input
-                  type="checkbox"
-                  checked={exportFields.includes(field.key)}
-                  onChange={() => toggleExportField(field.key)}
-                />
-                <span>{field.label}</span>
-              </label>
-            ))}
-          </div>
-          <div className="export-panel-actions">
-            <button
-              className="secondary-button small"
-              type="button"
-              onClick={() => setExportFields(ALERT_EXPORT_FIELDS.map((field) => field.key))}
-            >
-              Select all
-            </button>
-            <button className="secondary-button small" type="button" onClick={() => setExportFields([])}>
-              Deselect all
-            </button>
-            <button className="primary-button small" type="button" onClick={exportAlertsCsv}>
-              Export CSV
-            </button>
-          </div>
-        </div>
       </div>
 
       <div className="split-layout alerts-layout">
